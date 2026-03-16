@@ -9,7 +9,6 @@ def crop_image(img:np.array, crop_pix_x:int, crop_pix_y:int, width:int, height:i
     return img[crop_pix_y:crop_pix_y+height, crop_pix_x:crop_pix_x+width]
 
 def color_filtering(img_rgb:np.array) -> np.array:
-
     # Convert RGB image to HSV
     img_hsv = cv2.cvtColor(img_rgb, cv2.COLOR_BGR2HSV)
     h = img_hsv[:,:,0] # possible values : 0-179
@@ -27,24 +26,24 @@ def color_filtering(img_rgb:np.array) -> np.array:
     # Define thresholds to distinguish metallic tools
     # In HSV
     mask_hue = h > 70 # eliminates red/oranges
-    mask_sat  = s < 60 # low saturation
+    mask_sat = s < 60 # low saturation
+    mask_val = v > 40 # eliminates dark spots
     # In Opponent Color space
     mask_o1 = np.abs(O1) < 15
     mask_o2 = np.abs(O2) < 15
 
     # Combine masks
-    mask =  mask_hue & mask_sat & mask_o1 & mask_o2
+    mask =  mask_hue & mask_sat & mask_val & mask_o1 & mask_o2
     mask = mask.astype(np.uint8) * 255
 
     # Morphologic filtering
-    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5,5))
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2,2))
     mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
     mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
 
     return mask
 
 def run_grabcut(img_rgb: np.array, init_mask: np.array, iterations: int = 5) -> np.array:
-
     # Prepare GrabCut mask
     grabcut_mask = np.where(init_mask > 0, cv2.GC_PR_FGD, cv2.GC_BGD).astype('uint8')
 
@@ -57,12 +56,67 @@ def run_grabcut(img_rgb: np.array, init_mask: np.array, iterations: int = 5) -> 
 
     # Convert GrabCut output to binary mask
     grabcut_result = np.where(
-        (grabcut_mask == cv2.GC_FGD) | (grabcut_mask == cv2.GC_PR_FGD),
+        (grabcut_mask == cv2.GC_FGD) | (grabcut_mask == cv2.GC_PR_FGD), # we consider both background (BG) and probable background (PR_BG)
         255,
         0
     ).astype('uint8')
 
     return grabcut_result
+
+def extract_edges(img_rgb):
+    # Convert to grayscale
+    img_gray = cv2.cvtColor(img_rgb, cv2.COLOR_RGB2GRAY)
+
+    # Canny filter
+    edge_mask = cv2.Canny(img_gray, 40, 200)
+
+    return edge_mask
+
+def extract_elongated_shapes(mask):
+    # Label all separate regions
+    num_labels, labels, stats, _ = cv2.connectedComponentsWithStats(mask)
+
+    # Initialization
+    shape_mask = np.zeros_like(mask, dtype=np.float32)
+
+    for i in range(1, num_labels):
+        # Extract width/height of each region
+        width = stats[i, cv2.CC_STAT_WIDTH]
+        height = stats[i, cv2.CC_STAT_HEIGHT]
+
+        # Only elongated regions are kept
+        elongation = max(width, height) / (min(width, height) + 1e-5)
+        if elongation > 1.5:  
+            shape_mask[labels == i] = 255.0
+
+    return shape_mask
+
+def extract_border_regions(mask):
+    # Label all separate regions
+    num_labels, labels, stats, _ = cv2.connectedComponentsWithStats(mask)
+
+    # Initialization
+    h, w = mask.shape
+    border_feature = np.zeros_like(mask, dtype=np.float32)
+
+    for i in range(1, num_labels):
+        # Extract stats of each region
+        x = stats[i, cv2.CC_STAT_LEFT]
+        y = stats[i, cv2.CC_STAT_TOP]
+        width = stats[i, cv2.CC_STAT_WIDTH]
+        height = stats[i, cv2.CC_STAT_HEIGHT]
+
+        # Only the regions touching the borfer are kept
+        touches_border = (
+            x == 0 or
+            y == 0 or
+            (x + width) >= w-1 or
+            (y + height) >= h-1
+        )
+        if touches_border:
+            border_feature[labels == i] = 255.0
+
+    return border_feature
 
 if __name__ == '__main__' :
     # Define paths
@@ -80,27 +134,72 @@ if __name__ == '__main__' :
     img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
     # Crop image
-    img_crop = crop_image(img_rgb, 320, 28, 1280, 1024)
+    img_crop = crop_image(img_rgb, 328, 37, 1264, 1010)
 
     # Define possible tool areas
-    init_mask = color_filtering(img_crop)
+    color_mask = color_filtering(img_crop)
 
     # Refine segmentation with GrabCut
-    grabcut_result = run_grabcut(img_crop, init_mask)
+    grabcut_mask = run_grabcut(img_crop, color_mask)
+
+    # Extract features
+    edge_mask = extract_edges(img_crop)
+    shape_mask = extract_elongated_shapes(color_mask)
+    border_mask = extract_border_regions(color_mask)
+
+    # Convert masks to probabilities
+    color_prob = color_mask.astype(np.float32) / 255
+    grabcut_prob = grabcut_mask.astype(np.float32) / 255
+    edge_prob = edge_mask.astype(np.float32) / 255
+    shape_prob = shape_mask.astype(np.float32) / 255
+    border_prob = border_mask.astype(np.float32) / 255
     
-    # Show images
-    fig, axes = plt.subplots(1, 3, figsize=(12,4))
+    # Compute score
+    prob_map = (
+    0.25 * color_prob +
+    0.3 * grabcut_prob +
+    0.15 * edge_prob +
+    0.3 * shape_prob
+    )
+    prob_map *= border_prob
 
-    axes[0].imshow(img_crop)
-    axes[0].set_title("Image originale")
-    axes[0].axis("off")
+    # Threshold
+    final_mask = (prob_map > 0.5).astype(np.uint8) * 255
+    
+    # Show images and computed features
+    fig, axes = plt.subplots(2, 4, figsize=(14,6))
 
-    axes[1].imshow(init_mask, cmap="gray")
-    axes[1].set_title("Filtrage des couleurs")
-    axes[1].axis("off")
+    axes[0,0].imshow(img_crop)
+    axes[0,0].set_title("Image originale")
+    axes[0,0].axis("off")
 
-    axes[2].imshow(grabcut_result, cmap="gray")
-    axes[2].set_title("Résultat GrabCut")
-    axes[2].axis("off")
+    axes[0,1].imshow(color_mask, cmap="gray")
+    axes[0,1].set_title("Color mask")
+    axes[0,1].axis("off")
 
+    axes[0,2].imshow(grabcut_mask, cmap="gray")
+    axes[0,2].set_title("GrabCut mask")
+    axes[0,2].axis("off")
+
+    axes[0,3].imshow(prob_map, cmap="gray")
+    axes[0,3].set_title("Probability map")
+    axes[0,3].axis("off")
+
+    axes[1,0].imshow(edge_mask, cmap="gray")
+    axes[1,0].set_title("Edge feature")
+    axes[1,0].axis("off")
+
+    axes[1,1].imshow(shape_mask, cmap="gray")
+    axes[1,1].set_title("Shape feature")
+    axes[1,1].axis("off")
+
+    axes[1,2].imshow(border_mask, cmap="gray")
+    axes[1,2].set_title("Border feature")
+    axes[1,2].axis("off")
+
+    axes[1,3].imshow(final_mask, cmap="gray")
+    axes[1,3].set_title("Final mask")
+    axes[1,3].axis("off")
+
+    plt.tight_layout()
     plt.show()
