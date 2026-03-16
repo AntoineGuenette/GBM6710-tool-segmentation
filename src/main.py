@@ -68,7 +68,7 @@ def extract_edges(img_rgb):
     img_gray = cv2.cvtColor(img_rgb, cv2.COLOR_RGB2GRAY)
 
     # Canny filter
-    edge_mask = cv2.Canny(img_gray, 40, 200)
+    edge_mask = cv2.Canny(img_gray, 20, 200)
 
     return edge_mask
 
@@ -118,6 +118,44 @@ def extract_border_regions(mask):
 
     return border_feature
 
+def compute_blur_score(img_rgb):
+    # Convert to gray scale
+    img_gray = cv2.cvtColor(img_rgb, cv2.COLOR_RGB2GRAY)
+
+    # Laplacian filter
+    laplacian = cv2.Laplacian(img_gray, cv2.CV_64F)
+
+    # The blur score is the variance of the Laplacian response
+    blur_score = laplacian.var()
+    return blur_score
+
+def blur_factor(blur_score, min_blur=50, max_blur=150):
+    """
+    Normalize blur score to a factor between 0 and 1.
+    0 -> very blurry image
+    1 -> sharp image
+    """
+    factor = (blur_score - min_blur) / (max_blur - min_blur)
+    factor = np.clip(factor, 0.0, 1.0)
+    return factor
+
+
+def compute_dynamic_weights(bf):
+    w_color = 0.25
+    w_grabcut = 0.3
+    w_shape = 0.3
+    w_edge = 0.15 * bf
+
+    total = w_color + w_grabcut + w_shape + w_edge
+
+    return (
+        w_color/total,
+        w_grabcut/total,
+        w_edge/total,
+        w_shape/total
+    )
+
+
 if __name__ == '__main__' :
     # Define paths
     script_path = os.path.abspath(__file__)
@@ -153,13 +191,18 @@ if __name__ == '__main__' :
     edge_prob = edge_mask.astype(np.float32) / 255
     shape_prob = shape_mask.astype(np.float32) / 255
     border_prob = border_mask.astype(np.float32) / 255
-    
+
+    # Compute blur level and dynamic weights
+    blur_score = compute_blur_score(img_crop)
+    bf = blur_factor(blur_score)
+    w_color, w_grabcut, w_edge, w_shape = compute_dynamic_weights(bf)
+
     # Compute score
     prob_map = (
-    0.25 * color_prob +
-    0.3 * grabcut_prob +
-    0.15 * edge_prob +
-    0.3 * shape_prob
+        w_color * color_prob +
+        w_grabcut * grabcut_prob +
+        w_edge * edge_prob +
+        w_shape * shape_prob
     )
     prob_map *= border_prob
 
@@ -167,7 +210,7 @@ if __name__ == '__main__' :
     final_mask = (prob_map > 0.5).astype(np.uint8) * 255
     
     # Show images and computed features
-    fig, axes = plt.subplots(2, 4, figsize=(14,6))
+    fig, axes = plt.subplots(2, 4, figsize=(14,8))
 
     axes[0,0].imshow(img_crop)
     axes[0,0].set_title("Image originale")
@@ -201,5 +244,6 @@ if __name__ == '__main__' :
     axes[1,3].set_title("Final mask")
     axes[1,3].axis("off")
 
+    plt.suptitle(f"Image processing\nBlur score: {blur_score:.2f} | Blur factor: {bf:.2f}")
     plt.tight_layout()
     plt.show()
