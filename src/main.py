@@ -5,10 +5,93 @@ import matplotlib.pyplot as plt
 
 from matplotlib.figure import Figure
 
-def crop_image(img:np.array, crop_pix_x:int, crop_pix_y:int, width:int, height:int) -> np.array:
+def segment_tools(img_path: str, save_dir: str=None, debug: bool=False):
+    # Load image
+    img = cv2.imread(img_path)
+    img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+
+    # Crop image
+    img_crop = crop_image(img_rgb, 328, 37, 1264, 1010)
+
+    # Define possible tool areas
+    color_mask = color_filtering(img_crop)
+
+    # Refine segmentation with GrabCut
+    grabcut_mask = run_grabcut(img_crop, color_mask)
+
+    # Extract features
+    edge_mask = extract_edges(img_crop)
+    shape_mask = extract_elongated_shapes(color_mask)
+    border_mask = extract_border_regions(color_mask)
+
+    # Convert masks to probabilities
+    color_prob = color_mask.astype(np.float32) / 255
+    grabcut_prob = grabcut_mask.astype(np.float32) / 255
+    edge_prob = edge_mask.astype(np.float32) / 255
+    shape_prob = shape_mask.astype(np.float32) / 255
+    border_prob = border_mask.astype(np.float32) / 255
+
+    # Compute blur level and dynamic weights
+    blur_score = compute_blur_score(img_crop)
+    bf = blur_factor(blur_score)
+    w_color, w_grabcut, w_edge, w_shape = compute_dynamic_weights(bf)
+
+    # Compute score
+    prob_map = (
+        w_color * color_prob +
+        w_grabcut * grabcut_prob +
+        w_edge * edge_prob +
+        w_shape * shape_prob
+    )
+    prob_map *= border_prob
+
+    # Threshold
+    final_mask = (prob_map > 0.5).astype(np.uint8) * 255
+
+    # Show images and computed features if specified
+    if debug:
+        _, axes = plt.subplots(2, 4, figsize=(14,8))
+
+        axes[0,0].imshow(img_crop)
+        axes[0,0].set_title("Original Image")
+        axes[0,0].axis("off")
+
+        axes[0,1].imshow(color_mask, cmap="gray")
+        axes[0,1].set_title("Color mask")
+        axes[0,1].axis("off")
+
+        axes[0,2].imshow(grabcut_mask, cmap="gray")
+        axes[0,2].set_title("GrabCut mask")
+        axes[0,2].axis("off")
+
+        axes[0,3].imshow(prob_map, cmap="gray")
+        axes[0,3].set_title("Probability map")
+        axes[0,3].axis("off")
+
+        axes[1,0].imshow(edge_mask, cmap="gray")
+        axes[1,0].set_title("Edge feature")
+        axes[1,0].axis("off")
+
+        axes[1,1].imshow(shape_mask, cmap="gray")
+        axes[1,1].set_title("Shape feature")
+        axes[1,1].axis("off")
+
+        axes[1,2].imshow(border_mask, cmap="gray")
+        axes[1,2].set_title("Border feature")
+        axes[1,2].axis("off")
+
+        axes[1,3].imshow(final_mask, cmap="gray")
+        axes[1,3].set_title("Final mask")
+        axes[1,3].axis("off")
+
+        plt.suptitle(f"Image processing\nBlur score: {blur_score:.2f} | Blur factor: {bf:.2f}")
+        plt.tight_layout()
+        plt.show()
+
+def crop_image(img: np.array, crop_pix_x: int, crop_pix_y: int, width: int, height: int) -> np.array:
     return img[crop_pix_y:crop_pix_y+height, crop_pix_x:crop_pix_x+width]
 
-def color_filtering(img_rgb:np.array) -> np.array:
+def color_filtering(img_rgb: np.array) -> np.array:
     # Convert RGB image to HSV
     img_hsv = cv2.cvtColor(img_rgb, cv2.COLOR_BGR2HSV)
     h = img_hsv[:,:,0] # possible values : 0-179
@@ -139,7 +222,6 @@ def blur_factor(blur_score, min_blur=50, max_blur=150):
     factor = np.clip(factor, 0.0, 1.0)
     return factor
 
-
 def compute_dynamic_weights(bf):
     w_color = 0.25
     w_grabcut = 0.3
@@ -165,85 +247,9 @@ if __name__ == '__main__' :
 
     # Select image to analyse
     # img_path = os.path.join(data_dir, 'dataset_1', 'frame239.png')
-    img_path = os.path.join(data_dir, 'dataset_2', 'frame260.png')
+    # img_path = os.path.join(data_dir, 'dataset_2', 'frame260.png')
     # img_path = os.path.join(data_dir, 'dataset_3', 'frame245.png')
-    # img_path = os.path.join(data_dir, 'dataset_4', 'frame238.png')
-    img = cv2.imread(img_path)
-    img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-
-    # Crop image
-    img_crop = crop_image(img_rgb, 328, 37, 1264, 1010)
-
-    # Define possible tool areas
-    color_mask = color_filtering(img_crop)
-
-    # Refine segmentation with GrabCut
-    grabcut_mask = run_grabcut(img_crop, color_mask)
-
-    # Extract features
-    edge_mask = extract_edges(img_crop)
-    shape_mask = extract_elongated_shapes(color_mask)
-    border_mask = extract_border_regions(color_mask)
-
-    # Convert masks to probabilities
-    color_prob = color_mask.astype(np.float32) / 255
-    grabcut_prob = grabcut_mask.astype(np.float32) / 255
-    edge_prob = edge_mask.astype(np.float32) / 255
-    shape_prob = shape_mask.astype(np.float32) / 255
-    border_prob = border_mask.astype(np.float32) / 255
-
-    # Compute blur level and dynamic weights
-    blur_score = compute_blur_score(img_crop)
-    bf = blur_factor(blur_score)
-    w_color, w_grabcut, w_edge, w_shape = compute_dynamic_weights(bf)
-
-    # Compute score
-    prob_map = (
-        w_color * color_prob +
-        w_grabcut * grabcut_prob +
-        w_edge * edge_prob +
-        w_shape * shape_prob
-    )
-    prob_map *= border_prob
-
-    # Threshold
-    final_mask = (prob_map > 0.5).astype(np.uint8) * 255
+    img_path = os.path.join(data_dir, 'dataset_4', 'frame238.png')
     
-    # Show images and computed features
-    fig, axes = plt.subplots(2, 4, figsize=(14,8))
-
-    axes[0,0].imshow(img_crop)
-    axes[0,0].set_title("Image originale")
-    axes[0,0].axis("off")
-
-    axes[0,1].imshow(color_mask, cmap="gray")
-    axes[0,1].set_title("Color mask")
-    axes[0,1].axis("off")
-
-    axes[0,2].imshow(grabcut_mask, cmap="gray")
-    axes[0,2].set_title("GrabCut mask")
-    axes[0,2].axis("off")
-
-    axes[0,3].imshow(prob_map, cmap="gray")
-    axes[0,3].set_title("Probability map")
-    axes[0,3].axis("off")
-
-    axes[1,0].imshow(edge_mask, cmap="gray")
-    axes[1,0].set_title("Edge feature")
-    axes[1,0].axis("off")
-
-    axes[1,1].imshow(shape_mask, cmap="gray")
-    axes[1,1].set_title("Shape feature")
-    axes[1,1].axis("off")
-
-    axes[1,2].imshow(border_mask, cmap="gray")
-    axes[1,2].set_title("Border feature")
-    axes[1,2].axis("off")
-
-    axes[1,3].imshow(final_mask, cmap="gray")
-    axes[1,3].set_title("Final mask")
-    axes[1,3].axis("off")
-
-    plt.suptitle(f"Image processing\nBlur score: {blur_score:.2f} | Blur factor: {bf:.2f}")
-    plt.tight_layout()
-    plt.show()
+    # Do the segmentation
+    segment_tools(img_path, debug=True)
