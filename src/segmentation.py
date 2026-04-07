@@ -13,7 +13,7 @@ def segment_tools(img_path: str, save_dir: str=None, debug: bool=False):
     img = cv2.imread(img_path)
     if img is None:
         raise ValueError(f"Image not found or unreadable: {img_path}")
-    logger.debug(f"Loaded image: {img_path} with shape {img.shape}")
+    logger.debug(f"Loaded image: {os.path.basename(img_path)} with shape {img.shape}")
     img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
     # Crop image
@@ -43,7 +43,7 @@ def segment_tools(img_path: str, save_dir: str=None, debug: bool=False):
     bf = blur_factor(blur_score)
     logger.debug(f"Blur score: {blur_score:.2f}, blur factor: {bf:.2f}")
     w_color, w_grabcut, w_edge, w_shape = compute_dynamic_weights(bf)
-    logger.debug(f"Weights -> color:{w_color:.3f}, grabcut:{w_grabcut:.3f}, edge:{w_edge:.3f}, shape:{w_shape:.3f}")
+    logger.debug(f"Weights = color:{w_color:.3f}, grabcut:{w_grabcut:.3f}, edge:{w_edge:.3f}, shape:{w_shape:.3f}")
 
     # Compute score
     prob_map = (
@@ -58,7 +58,7 @@ def segment_tools(img_path: str, save_dir: str=None, debug: bool=False):
     final_mask = (prob_map > 0.5).astype(np.uint8) * 255
 
     if save_dir is not None:
-        logger.debug(f"Saving results for {os.path.basename(img_path)} to {save_dir}")
+        logger.debug(f"Saved results for {os.path.basename(img_path)}")
         # Save cropped original image
         img_name = os.path.basename(img_path)
         crop_img_name = 'cropped_' + img_name

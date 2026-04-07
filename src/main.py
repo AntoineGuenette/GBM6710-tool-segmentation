@@ -1,8 +1,10 @@
 import argparse
 import os
 import logging
+import cv2
+import numpy as np
 
-from segmentation import segment_tools
+from segmentation import segment_tools, crop_image
 from analysis import compute_IoU, compute_mean_IoU, append_dataset_result
 
 logging.basicConfig(
@@ -31,7 +33,14 @@ def main():
     args = parse_args()
     data_dir = args.data_dir
     log_level = getattr(logging, args.log_level.upper(), logging.INFO)
+    debug_vis = (log_level == logging.DEBUG)
+
+    # Set level for root logger AND all module loggers
+    logging.getLogger().setLevel(log_level)
     logger.setLevel(log_level)
+    # Set log level to warning for python librairies
+    logging.getLogger("matplotlib").setLevel(logging.WARNING)
+    logging.getLogger("PIL").setLevel(logging.WARNING)
 
     logger.info(f"Starting segmentation pipeline with data_dir={data_dir} | log_level={args.log_level}")
 
@@ -42,9 +51,9 @@ def main():
     csv_path = os.path.join(res_dir, "metrics.csv")
 
     # Iterate over all datasets (1 to 10)
-    for i in range(1, 11):
+    for i in range(1, 6):
 
-        logger.info(f"Processing dataset {i}")
+        logger.info(f"-> PROCESSING DATASET {i} <-")
         iou_list = []
 
         # Define dataset-specific paths
@@ -62,28 +71,42 @@ def main():
             # Define frame paths
             frame_path = os.path.join(frames_dir, filename)
             GT_path = os.path.join(GT_frames_dir, filename)
+            mask_path = os.path.join(save_dir, 'binary_segmentations', 'bin_' + filename)
+            cropped_path = os.path.join(save_dir, 'cropped_images', 'cropped_' + filename)
 
             # Ignore macOS metadata files (e.g., '._frame225.png')
             if os.path.basename(filename).startswith('._'):
                 continue
             
-            logger.debug(f"Processing file: {filename}")
+            logger.debug(f"-> PROCESSING FILE: {filename} <-")
 
             # Segment the frame
-            segment_tools(frame_path, save_dir)
+            segment_tools(frame_path, save_dir, debug=debug_vis)
 
-            # Load masks
-            computed_mask = None  # TODO: replace with actual loading of saved mask
-            GT_mask = None        # TODO: replace with actual loading of GT mask
+            # Load masks (as binary)
+            if os.path.exists(mask_path) and os.path.exists(GT_path):
+                computed_mask = cv2.imread(mask_path, cv2.IMREAD_GRAYSCALE)
+                GT_mask = cv2.imread(GT_path, cv2.IMREAD_GRAYSCALE)
+                GT_mask = crop_image(GT_mask, 328, 37, 1264, 1010)
+
+                # Convert to binary (0/1)
+                computed_mask = (computed_mask > 0).astype(np.uint8)
+                GT_mask = (GT_mask > 0).astype(np.uint8)
+            else:
+                logger.warning(f"Missing mask for {filename}, skipping IoU computation")
+                computed_mask = None
+                GT_mask = None
 
             # Compute IoU if masks are available
             if computed_mask is not None and GT_mask is not None:
                 iou = compute_IoU(computed_mask, GT_mask)
                 iou_list.append(iou)
 
+        # Compute mean IoU
         mean_iou = compute_mean_IoU(iou_list)
         logger.info(f"Dataset {i} - Mean IoU: {mean_iou:.4f}")
 
+        # Save mean IoUs in a CSV file
         append_dataset_result(csv_path, i, mean_iou)
 
 if __name__ == "__main__" :
