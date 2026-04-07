@@ -51,8 +51,11 @@ def main():
     res_dir = os.path.join(data_dir, '..', 'res')
     csv_path = os.path.join(res_dir, "metrics.csv")
 
+    # Store global IoU results for best/worst/median selection
+    all_results = []
+
     # Iterate over all datasets (1 to 10)
-    for i in range(1, 6):
+    for i in range(1, 2):
 
         logger.info(f"-> PROCESSING DATASET {i} <-")
         iou_list = []
@@ -102,6 +105,16 @@ def main():
                 iou = compute_IoU(computed_mask, GT_mask)
                 iou_list.append(iou)
 
+                all_results.append({
+                    "iou": iou,
+                    "filename": filename,
+                    "img_crop": img_crop,
+                    "GT_mask": GT_mask,
+                    "prob_map": prob_map,
+                    "computed_mask": computed_mask,
+                    "save_dir": save_dir
+                })
+
                 # Save complete qualitative visualization
                 fig, axes = plt.subplots(2, 2, figsize=(8, 8))
 
@@ -135,6 +148,52 @@ def main():
 
         # Save mean IoUs in a CSV file
         append_dataset_result(csv_path, i, mean_iou)
+
+    # Global qualitative selection (min, max, median IoU)
+    if len(all_results) > 0:
+        # Sort by IoU
+        all_results_sorted = sorted(all_results, key=lambda x: x["iou"])
+
+        min_sample = all_results_sorted[0]
+        max_sample = all_results_sorted[-1]
+        median_sample = all_results_sorted[len(all_results_sorted)//2]
+
+        selected = {
+            "min": min_sample,
+            "median": median_sample,
+            "max": max_sample
+        }
+
+        global_vis_dir = os.path.join(res_dir, "global_qualitative")
+        os.makedirs(global_vis_dir, exist_ok=True)
+
+        for key, sample in selected.items():
+            fig, axes = plt.subplots(2, 2, figsize=(8, 8))
+
+            axes[0,0].imshow(sample["img_crop"])
+            axes[0,0].set_title("Original Image")
+            axes[0,0].axis("off")
+
+            axes[0,1].imshow(sample["GT_mask"], cmap="gray")
+            axes[0,1].set_title("Ground Truth")
+            axes[0,1].axis("off")
+
+            axes[1,0].imshow(sample["prob_map"], cmap="gray")
+            axes[1,0].set_title("Probability Map")
+            axes[1,0].axis("off")
+
+            axes[1,1].imshow(sample["computed_mask"], cmap="gray")
+            axes[1,1].set_title("Final Mask")
+            axes[1,1].axis("off")
+
+            plt.suptitle(f"{sample['filename']} ({key})\nIoU: {sample['iou']:.4f}")
+            plt.tight_layout()
+
+            out_path = os.path.join(global_vis_dir, f"{key}_IoU_{sample['iou']:.4f}.png")
+            plt.savefig(out_path, dpi=300)
+            plt.close()
+
+        logger.info("Saved global qualitative samples (min, median, max IoU)")
 
 if __name__ == "__main__" :
     main()
