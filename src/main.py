@@ -3,6 +3,7 @@ import os
 import logging
 import cv2
 import numpy as np
+import matplotlib.pyplot as plt
 
 from segmentation import segment_tools, crop_image
 from analysis import compute_IoU, compute_mean_IoU, append_dataset_result
@@ -81,15 +82,14 @@ def main():
             logger.debug(f"-> PROCESSING FILE: {filename} <-")
 
             # Segment the frame
-            segment_tools(frame_path, save_dir, debug=debug_vis)
+            computed_mask, prob_map, img_crop = segment_tools(frame_path, save_dir, debug=debug_vis)
 
-            # Load masks (as binary)
+            # Load GT (as binary)
             if os.path.exists(mask_path) and os.path.exists(GT_path):
-                computed_mask = cv2.imread(mask_path, cv2.IMREAD_GRAYSCALE)
-                GT_mask = cv2.imread(GT_path, cv2.IMREAD_GRAYSCALE)
-                GT_mask = crop_image(GT_mask, 328, 37, 1264, 1010)
+                GT_mask = cv2.imread(GT_path, cv2.IMREAD_GRAYSCALE) # Open
+                GT_mask = crop_image(GT_mask, 328, 37, 1264, 1010) # Crop
 
-                # Convert to binary (0/1)
+                # Concert to binary in uint8 (0/1)
                 computed_mask = (computed_mask > 0).astype(np.uint8)
                 GT_mask = (GT_mask > 0).astype(np.uint8)
             else:
@@ -97,10 +97,37 @@ def main():
                 computed_mask = None
                 GT_mask = None
 
-            # Compute IoU if masks are available
             if computed_mask is not None and GT_mask is not None:
+                # Compute IoU
                 iou = compute_IoU(computed_mask, GT_mask)
                 iou_list.append(iou)
+
+                # Save complete qualitative visualization
+                fig, axes = plt.subplots(2, 2, figsize=(8, 8))
+
+                axes[0,0].imshow(img_crop)
+                axes[0,0].set_title("Original Image")
+                axes[0,0].axis("off")
+
+                axes[0,1].imshow(GT_mask, cmap="gray")
+                axes[0,1].set_title("Ground Truth")
+                axes[0,1].axis("off")
+
+                axes[1,0].imshow(prob_map, cmap="gray")
+                axes[1,0].set_title("Probability Map")
+                axes[1,0].axis("off")
+
+                axes[1,1].imshow(computed_mask, cmap="gray")
+                axes[1,1].set_title("Final Mask")
+                axes[1,1].axis("off")
+
+                plt.suptitle(f"{filename}\nIoU: {iou:.4f}")
+                plt.tight_layout()
+
+                qual_res_file_name = 'QualRes_' + filename
+                qual_res_file_path = os.path.join(save_dir, 'qualitative_results', qual_res_file_name)
+                os.makedirs(os.path.dirname(qual_res_file_path), exist_ok=True)
+                plt.savefig(qual_res_file_path, dpi=300)
 
         # Compute mean IoU
         mean_iou = compute_mean_IoU(iou_list)

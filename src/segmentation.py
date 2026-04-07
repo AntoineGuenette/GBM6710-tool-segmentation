@@ -13,12 +13,10 @@ def segment_tools(img_path: str, save_dir: str=None, debug: bool=False):
     img = cv2.imread(img_path)
     if img is None:
         raise ValueError(f"Image not found or unreadable: {img_path}")
-    logger.debug(f"Loaded image: {os.path.basename(img_path)} with shape {img.shape}")
     img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
     # Crop image
     img_crop = crop_image(img_rgb, 328, 37, 1264, 1010)
-    logger.debug(f"Cropped image shape: {img_crop.shape}")
 
     # Define possible tool areas
     color_mask = color_filtering(img_crop)
@@ -58,7 +56,6 @@ def segment_tools(img_path: str, save_dir: str=None, debug: bool=False):
     final_mask = (prob_map > 0.5).astype(np.uint8) * 255
 
     if save_dir is not None:
-        logger.debug(f"Saved results for {os.path.basename(img_path)}")
         # Save cropped original image
         img_name = os.path.basename(img_path)
         crop_img_name = 'cropped_' + img_name
@@ -108,7 +105,9 @@ def segment_tools(img_path: str, save_dir: str=None, debug: bool=False):
         axes[1,3].set_title("Final mask")
         axes[1,3].axis("off")
 
-        plt.suptitle(f"Image processing\nBlur score: {blur_score:.2f} | Blur factor: {bf:.2f}")
+        plt.suptitle(f"Image processing\n\
+                     Blur score: {blur_score:.2f} | Blur factor: {bf:.2f}\n\
+                     Weights = color:{w_color:.3f}, grabcut:{w_grabcut:.3f}, edge:{w_edge:.3f}, shape:{w_shape:.3f}")
         plt.tight_layout()
         
         if save_dir is not None:
@@ -117,6 +116,8 @@ def segment_tools(img_path: str, save_dir: str=None, debug: bool=False):
             debug_file_path = os.path.join(save_dir, 'DEBUG', debug_file_name)
             os.makedirs(os.path.dirname(debug_file_path), exist_ok=True)
             plt.savefig(debug_file_path, dpi=300)
+
+    return final_mask, prob_map, img_crop
 
 def crop_image(img: np.array, crop_pix_x: int, crop_pix_y: int, width: int, height: int) -> np.array:
     return img[crop_pix_y:crop_pix_y+height, crop_pix_x:crop_pix_x+width]
