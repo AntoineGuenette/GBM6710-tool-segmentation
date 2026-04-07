@@ -71,7 +71,7 @@ def segment_tools(img_path: str, save_dir: str=None, debug: bool=False):
 
     # Show images and computed features if specified
     if debug:
-        _, axes = plt.subplots(2, 4, figsize=(14,7))
+        fig, axes = plt.subplots(2, 4, figsize=(14,7))
 
         axes[0,0].imshow(img_crop)
         axes[0,0].set_title("Original Image")
@@ -116,6 +116,7 @@ def segment_tools(img_path: str, save_dir: str=None, debug: bool=False):
             debug_file_path = os.path.join(save_dir, 'DEBUG', debug_file_name)
             os.makedirs(os.path.dirname(debug_file_path), exist_ok=True)
             plt.savefig(debug_file_path, dpi=300)
+        plt.close(fig)
 
     return final_mask, prob_map, img_crop
 

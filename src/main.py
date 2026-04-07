@@ -141,6 +141,7 @@ def main():
                 qual_res_file_path = os.path.join(save_dir, 'qualitative_results', qual_res_file_name)
                 os.makedirs(os.path.dirname(qual_res_file_path), exist_ok=True)
                 plt.savefig(qual_res_file_path, dpi=300)
+                plt.close(fig)
 
         # Compute mean IoU
         mean_iou = compute_mean_IoU(iou_list)
@@ -149,51 +150,58 @@ def main():
         # Save mean IoUs in a CSV file
         append_dataset_result(csv_path, i, mean_iou)
 
-    # Global qualitative selection (min, max, median IoU)
+    # Global qualitative selection (top 3 min, median, max IoU)
     if len(all_results) > 0:
         # Sort by IoU
         all_results_sorted = sorted(all_results, key=lambda x: x["iou"])
+        n = len(all_results_sorted)
 
-        min_sample = all_results_sorted[0]
-        max_sample = all_results_sorted[-1]
-        median_sample = all_results_sorted[len(all_results_sorted)//2]
+        # Select samples
+        min_samples = all_results_sorted[:3]
+        max_samples = all_results_sorted[-3:]
+        median_start = max(0, n // 2 - 1)
+        median_samples = all_results_sorted[median_start:median_start + 3]
 
-        selected = {
-            "min": min_sample,
-            "median": median_sample,
-            "max": max_sample
+        selected_groups = {
+            "min": min_samples,
+            "median": median_samples,
+            "max": max_samples
         }
 
         global_vis_dir = os.path.join(res_dir, "global_qualitative")
         os.makedirs(global_vis_dir, exist_ok=True)
 
-        for key, sample in selected.items():
-            fig, axes = plt.subplots(2, 2, figsize=(8, 8))
+        for key, samples in selected_groups.items():
+            for idx, sample in enumerate(samples):
+                fig, axes = plt.subplots(2, 2, figsize=(8, 8))
 
-            axes[0,0].imshow(sample["img_crop"])
-            axes[0,0].set_title("Original Image")
-            axes[0,0].axis("off")
+                axes[0,0].imshow(sample["img_crop"])
+                axes[0,0].set_title("Original Image")
+                axes[0,0].axis("off")
 
-            axes[0,1].imshow(sample["GT_mask"], cmap="gray")
-            axes[0,1].set_title("Ground Truth")
-            axes[0,1].axis("off")
+                axes[0,1].imshow(sample["GT_mask"], cmap="gray")
+                axes[0,1].set_title("Ground Truth")
+                axes[0,1].axis("off")
 
-            axes[1,0].imshow(sample["prob_map"], cmap="gray")
-            axes[1,0].set_title("Probability Map")
-            axes[1,0].axis("off")
+                axes[1,0].imshow(sample["prob_map"], cmap="gray")
+                axes[1,0].set_title("Probability Map")
+                axes[1,0].axis("off")
 
-            axes[1,1].imshow(sample["computed_mask"], cmap="gray")
-            axes[1,1].set_title("Final Mask")
-            axes[1,1].axis("off")
+                axes[1,1].imshow(sample["computed_mask"], cmap="gray")
+                axes[1,1].set_title("Final Mask")
+                axes[1,1].axis("off")
 
-            plt.suptitle(f"{sample['filename']} ({key})\nIoU: {sample['iou']:.4f}")
-            plt.tight_layout()
+                plt.suptitle(f"{sample['filename']} ({key} #{idx+1})\nIoU: {sample['iou']:.4f}")
+                plt.tight_layout()
 
-            out_path = os.path.join(global_vis_dir, f"{key}_IoU_{sample['iou']:.4f}.png")
-            plt.savefig(out_path, dpi=300)
-            plt.close()
+                out_path = os.path.join(
+                    global_vis_dir,
+                    f"{key}_{idx+1}_IoU_{sample['iou']:.4f}.png"
+                )
+                plt.savefig(out_path, dpi=300)
+                plt.close()
 
-        logger.info("Saved global qualitative samples (min, median, max IoU)")
+        logger.info("Saved global qualitative samples (top 3 min, median, max IoU)")
 
 if __name__ == "__main__" :
     main()
