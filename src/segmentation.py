@@ -2,6 +2,9 @@ import numpy as np
 import os
 import cv2
 import matplotlib.pyplot as plt
+import logging
+
+logger = logging.getLogger(__name__)
 
 from matplotlib.figure import Figure
 
@@ -10,10 +13,12 @@ def segment_tools(img_path: str, save_dir: str=None, debug: bool=False):
     img = cv2.imread(img_path)
     if img is None:
         raise ValueError(f"Image not found or unreadable: {img_path}")
+    logger.debug(f"Loaded image: {img_path} with shape {img.shape}")
     img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
     # Crop image
     img_crop = crop_image(img_rgb, 328, 37, 1264, 1010)
+    logger.debug(f"Cropped image shape: {img_crop.shape}")
 
     # Define possible tool areas
     color_mask = color_filtering(img_crop)
@@ -36,7 +41,9 @@ def segment_tools(img_path: str, save_dir: str=None, debug: bool=False):
     # Compute blur level and dynamic weights
     blur_score = compute_blur_score(img_crop)
     bf = blur_factor(blur_score)
+    logger.debug(f"Blur score: {blur_score:.2f}, blur factor: {bf:.2f}")
     w_color, w_grabcut, w_edge, w_shape = compute_dynamic_weights(bf)
+    logger.debug(f"Weights -> color:{w_color:.3f}, grabcut:{w_grabcut:.3f}, edge:{w_edge:.3f}, shape:{w_shape:.3f}")
 
     # Compute score
     prob_map = (
@@ -51,6 +58,7 @@ def segment_tools(img_path: str, save_dir: str=None, debug: bool=False):
     final_mask = (prob_map > 0.5).astype(np.uint8) * 255
 
     if save_dir is not None:
+        logger.debug(f"Saving results for {os.path.basename(img_path)} to {save_dir}")
         # Save cropped original image
         img_name = os.path.basename(img_path)
         crop_img_name = 'cropped_' + img_name
