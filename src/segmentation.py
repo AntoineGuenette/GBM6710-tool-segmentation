@@ -8,6 +8,8 @@ from matplotlib.figure import Figure
 def segment_tools(img_path: str, save_dir: str=None, debug: bool=False):
     # Load image
     img = cv2.imread(img_path)
+    if img is None:
+        raise ValueError(f"Image not found or unreadable: {img_path}")
     img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
     # Crop image
