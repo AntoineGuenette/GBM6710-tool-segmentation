@@ -17,6 +17,10 @@ def segment_tools(img_path: str, save_dir: str=None, debug: bool=False):
 
     # Crop image
     img_crop = crop_image(img_rgb, 328, 37, 1264, 1010)
+    if img_crop is None or not isinstance(img_crop, np.ndarray):
+        raise ValueError("Cropping failed: img_crop is invalid")
+    if img_crop.dtype == object:
+        raise TypeError("img_crop has dtype=object after cropping")
 
     # Define possible tool areas
     color_mask = color_filtering(img_crop)
@@ -63,11 +67,12 @@ def segment_tools(img_path: str, save_dir: str=None, debug: bool=False):
         os.makedirs(os.path.dirname(crop_image_path), exist_ok=True)
         plt.imsave(crop_image_path, img_crop, dpi=300)
 
-        # Save binary mask
+        # Save binary mask (prediction)
         mask_name = 'bin_' + img_name
         mask_path = os.path.join(save_dir, 'binary_segmentations', mask_name)
         os.makedirs(os.path.dirname(mask_path), exist_ok=True)
-        plt.imsave(mask_path, final_mask, cmap='gray', dpi=300)
+        # Save using OpenCV to ensure 0/255 uint8
+        cv2.imwrite(mask_path, final_mask)
 
     # Show images and computed features if specified
     if debug:
@@ -125,7 +130,7 @@ def crop_image(img: np.array, crop_pix_x: int, crop_pix_y: int, width: int, heig
 
 def color_filtering(img_rgb: np.array) -> np.array:
     # Convert RGB image to HSV
-    img_hsv = cv2.cvtColor(img_rgb, cv2.COLOR_BGR2HSV)
+    img_hsv = cv2.cvtColor(img_rgb, cv2.COLOR_RGB2HSV)
     h = img_hsv[:,:,0] # possible values : 0-179
     s = img_hsv[:,:,1] # possible values : 0-255
     v = img_hsv[:,:,2] # possible values : 0-255

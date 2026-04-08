@@ -81,7 +81,7 @@ def main():
             save_dir = os.path.join(res_dir, f'instrument_dataset_{i}')
             os.makedirs(save_dir, exist_ok=True) # Make directory if it does not exist
 
-            # terate over all frames
+            # Iterate over all frames
             for filename in sorted(os.listdir(frames_dir)):
                 # Only consider PNGs
                 if not filename.lower().endswith((".png")):
@@ -92,55 +92,86 @@ def main():
                 GT_path = os.path.join(GT_frames_dir, filename)
                 mask_path = os.path.join(save_dir, 'binary_segmentations', 'bin_' + filename)
                 cropped_path = os.path.join(save_dir, 'cropped_images', 'cropped_' + filename)
+                qual_res_file_name = 'QualRes_' + filename
+                qual_res_file_path = os.path.join(save_dir, 'qualitative_results', qual_res_file_name)
 
                 # Ignore macOS metadata files (e.g., '._frame225.png')
                 if os.path.basename(filename).startswith('._'):
                     continue
-                
-                logger.debug(f"-> PROCESSING FILE: {filename} <-")
 
-                # Segment the frame
-                computed_mask, prob_map, img_crop = segment_tools(frame_path, save_dir, debug=debug_vis)
+                # Check if qualitative result already exists (i.e., output image)
+                output_image_path = qual_res_file_path
+                pred_mask_path = mask_path
+                gt_mask_path = GT_path
 
-                # Load GT (as binary)
-                if os.path.exists(mask_path) and os.path.exists(GT_path):
-                    GT_mask = cv2.imread(GT_path, cv2.IMREAD_GRAYSCALE) # Open
-                    GT_mask = crop_image(GT_mask, 328, 37, 1264, 1010) # Crop
-
-                    # Concert to binary in uint8 (0/1)
-                    computed_mask = (computed_mask > 0).astype(np.uint8)
-                    GT_mask = (GT_mask > 0).astype(np.uint8)
+                if os.path.exists(output_image_path) and os.path.exists(pred_mask_path):
+                    
+                    logger.debug(f"Skipping existing image: {output_image_path}")
+                    # OPTIONAL: still compute IoU if masks are available
+                    if os.path.exists(pred_mask_path) and os.path.exists(gt_mask_path):
+                        # Load predicted mask
+                        pred_mask = cv2.imread(pred_mask_path, cv2.IMREAD_GRAYSCALE)
+                        gt_mask = cv2.imread(gt_mask_path, cv2.IMREAD_GRAYSCALE)
+                        # Crop GT mask as before
+                        gt_mask = crop_image(gt_mask, 328, 37, 1264, 1010)
+                        # Convert to binary
+                        pred_mask = (pred_mask > 0).astype(np.uint8)
+                        gt_mask = (gt_mask > 0).astype(np.uint8)
+                        iou = compute_IoU(pred_mask, gt_mask)
+                        iou_list.append(iou)
+                        # Store for global qualitative selection
+                        all_results.append({
+                            "iou": iou,
+                            "filename": filename,
+                            "img_crop": None,
+                            "GT_mask": gt_mask,
+                            "prob_map": None,
+                            "computed_mask": pred_mask,
+                            "save_dir": save_dir
+                        })
+                    continue
                 else:
-                    logger.warning(f"Missing mask for {filename}, skipping IoU computation")
-                    computed_mask = None
-                    GT_mask = None
+                    logger.debug(f"-> PROCESSING FILE: {filename} <-")
 
-                if computed_mask is not None and GT_mask is not None:
-                    # Compute IoU
-                    iou = compute_IoU(computed_mask, GT_mask)
-                    iou_list.append(iou)
+                    # Segment the frame
+                    computed_mask, prob_map, img_crop = segment_tools(frame_path, save_dir, debug=debug_vis)
 
-                    all_results.append({
-                        "iou": iou,
-                        "filename": filename,
-                        "img_crop": img_crop,
-                        "GT_mask": GT_mask,
-                        "prob_map": prob_map,
-                        "computed_mask": computed_mask,
-                        "save_dir": save_dir
-                    })
+                    # Save predicted mask (already saved in segment_tools)
+                    # Also save GT mask if exists
+                    if os.path.exists(gt_mask_path):
+                        GT_mask = cv2.imread(gt_mask_path, cv2.IMREAD_GRAYSCALE) # Open
+                        GT_mask = crop_image(GT_mask, 328, 37, 1264, 1010) # Crop
+                        # Convert to binary in uint8 (0/1)
+                        computed_mask_bin = (computed_mask > 0).astype(np.uint8)
+                        GT_mask_bin = (GT_mask > 0).astype(np.uint8)
+                    else:
+                        logger.warning(f"Missing mask for {filename}, skipping IoU computation")
+                        computed_mask_bin = None
+                        GT_mask_bin = None
 
-                    qual_res_file_name = 'QualRes_' + filename
-                    qual_res_file_path = os.path.join(save_dir, 'qualitative_results', qual_res_file_name)
+                    if computed_mask_bin is not None and GT_mask_bin is not None:
+                        # Compute IoU
+                        iou = compute_IoU(computed_mask_bin, GT_mask_bin)
+                        iou_list.append(iou)
 
-                    plot_qualitative_results(
-                        img_crop,
-                        GT_mask,
-                        prob_map,
-                        computed_mask,
-                        title=f"{filename}\nIoU: {iou:.4f}",
-                        save_path=qual_res_file_path
-                    )
+                        all_results.append({
+                            "iou": iou,
+                            "filename": filename,
+                            "img_crop": img_crop,
+                            "GT_mask": GT_mask_bin,
+                            "prob_map": prob_map,
+                            "computed_mask": computed_mask_bin,
+                            "save_dir": save_dir
+                        })
+
+                        plot_qualitative_results(
+                            img_crop,
+                            GT_mask_bin,
+                            prob_map,
+                            computed_mask_bin,
+                            title=f"{filename}\nIoU: {iou:.4f}",
+                            save_path=qual_res_file_path
+                        )
 
             # Compute mean IoU
             mean_iou = compute_mean_IoU(iou_list)

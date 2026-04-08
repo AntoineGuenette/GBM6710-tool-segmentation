@@ -1,3 +1,5 @@
+import cv2
+from segmentation import crop_image
 import os
 import matplotlib.pyplot as plt
 import numpy as np
@@ -5,18 +7,37 @@ import numpy as np
 def plot_qualitative_results(img_crop, GT_mask, prob_map, computed_mask, title, save_path):
     fig, axes = plt.subplots(2, 2, figsize=(8, 8))
 
+    # --- Safety checks for img_crop ---
+    if img_crop is None:
+        raise ValueError("img_crop is None (image not loaded or skipped improperly)")
+
+    if not isinstance(img_crop, np.ndarray):
+        raise TypeError(f"img_crop is not a numpy array: {type(img_crop)}")
+
+    if img_crop.dtype == object:
+        raise TypeError("img_crop has dtype=object (invalid image structure)")
+
+    if img_crop.ndim not in [2, 3]:
+        raise ValueError(f"img_crop has invalid number of dimensions: {img_crop.ndim}")
+
     axes[0,0].imshow(img_crop)
     axes[0,0].set_title("Image originale")
     axes[0,0].axis("off")
 
+    if GT_mask is None:
+        raise ValueError("GT_mask is None")
     axes[0,1].imshow(GT_mask, cmap="gray")
     axes[0,1].set_title("Segmentation cible (GT)")
     axes[0,1].axis("off")
 
+    if prob_map is None:
+        raise ValueError("prob_map is None")
     axes[1,0].imshow(prob_map, cmap="gray")
     axes[1,0].set_title("Carte de probabilité")
     axes[1,0].axis("off")
 
+    if computed_mask is None:
+        raise ValueError("computed_mask is None")
     axes[1,1].imshow(computed_mask, cmap="gray")
     axes[1,1].set_title("Segmentation calculée")
     axes[1,1].axis("off")
