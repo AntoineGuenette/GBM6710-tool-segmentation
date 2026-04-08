@@ -105,30 +105,47 @@ def main():
                 gt_mask_path = GT_path
 
                 if os.path.exists(output_image_path) and os.path.exists(pred_mask_path):
-                    
                     logger.debug(f"Skipping existing image: {output_image_path}")
-                    # OPTIONAL: still compute IoU if masks are available
-                    if os.path.exists(pred_mask_path) and os.path.exists(gt_mask_path):
-                        # Load predicted mask
-                        pred_mask = cv2.imread(pred_mask_path, cv2.IMREAD_GRAYSCALE)
-                        gt_mask = cv2.imread(gt_mask_path, cv2.IMREAD_GRAYSCALE)
-                        # Crop GT mask as before
-                        gt_mask = crop_image(gt_mask, 328, 37, 1264, 1010)
-                        # Convert to binary
-                        pred_mask = (pred_mask > 0).astype(np.uint8)
-                        gt_mask = (gt_mask > 0).astype(np.uint8)
-                        iou = compute_IoU(pred_mask, gt_mask)
-                        iou_list.append(iou)
-                        # Store for global qualitative selection
-                        all_results.append({
-                            "iou": iou,
-                            "filename": filename,
-                            "img_crop": None,
-                            "GT_mask": gt_mask,
-                            "prob_map": None,
-                            "computed_mask": pred_mask,
-                            "save_dir": save_dir
-                        })
+
+                    # --- Reload original image and crop ---
+                    original_img = cv2.imread(frame_path)
+                    if original_img is None:
+                        raise ValueError(f"Failed to reload image: {frame_path}")
+
+                    original_img_rgb = cv2.cvtColor(original_img, cv2.COLOR_BGR2RGB)
+                    img_crop = crop_image(original_img_rgb, 328, 37, 1264, 1010)
+
+                    if img_crop is None:
+                        raise ValueError("img_crop is None after reload in skip mode")
+
+                    # --- Load predicted and GT masks ---
+                    pred_mask = cv2.imread(pred_mask_path, cv2.IMREAD_GRAYSCALE)
+                    gt_mask = cv2.imread(gt_mask_path, cv2.IMREAD_GRAYSCALE)
+
+                    if pred_mask is None or gt_mask is None:
+                        raise ValueError("Failed to load masks in skip mode")
+
+                    # Crop GT mask
+                    gt_mask = crop_image(gt_mask, 328, 37, 1264, 1010)
+
+                    # Convert to binary
+                    pred_mask = (pred_mask > 0).astype(np.uint8)
+                    gt_mask = (gt_mask > 0).astype(np.uint8)
+
+                    # --- Compute IoU ---
+                    iou = compute_IoU(pred_mask, gt_mask)
+                    iou_list.append(iou)
+
+                    # Store for global qualitative selection
+                    all_results.append({
+                        "iou": iou,
+                        "filename": filename,
+                        "frame_path": frame_path,
+                        "gt_path": gt_mask_path,
+                        "pred_mask_path": pred_mask_path,
+                        "save_dir": save_dir
+                    })
+
                     continue
                 else:
                     logger.debug(f"-> PROCESSING FILE: {filename} <-")
@@ -157,10 +174,9 @@ def main():
                         all_results.append({
                             "iou": iou,
                             "filename": filename,
-                            "img_crop": img_crop,
-                            "GT_mask": GT_mask_bin,
-                            "prob_map": prob_map,
-                            "computed_mask": computed_mask_bin,
+                            "frame_path": frame_path,
+                            "gt_path": gt_mask_path,
+                            "pred_mask_path": mask_path,
                             "save_dir": save_dir
                         })
 
@@ -231,11 +247,28 @@ def main():
                     f"{key}_{idx+1}_IoU_{sample['iou']:.4f}.png"
                 )
 
+                # --- Reload data on demand ---
+                original_img = cv2.imread(sample["frame_path"])
+                if original_img is None:
+                    continue
+                original_img_rgb = cv2.cvtColor(original_img, cv2.COLOR_BGR2RGB)
+                img_crop = crop_image(original_img_rgb, 328, 37, 1264, 1010)
+
+                pred_mask = cv2.imread(sample["pred_mask_path"], cv2.IMREAD_GRAYSCALE)
+                gt_mask = cv2.imread(sample["gt_path"], cv2.IMREAD_GRAYSCALE)
+                if pred_mask is None or gt_mask is None:
+                    continue
+
+                gt_mask = crop_image(gt_mask, 328, 37, 1264, 1010)
+
+                pred_mask = (pred_mask > 0).astype(np.uint8)
+                gt_mask = (gt_mask > 0).astype(np.uint8)
+
                 plot_qualitative_results(
-                    sample["img_crop"],
-                    sample["GT_mask"],
-                    sample["prob_map"],
-                    sample["computed_mask"],
+                    img_crop,
+                    gt_mask,
+                    pred_mask,
+                    pred_mask,
                     title=f"{sample['filename']} ({key} #{idx+1})\nIoU: {sample['iou']:.4f}",
                     save_path=out_path
                 )
