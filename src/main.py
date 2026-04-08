@@ -6,7 +6,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from segmentation import segment_tools, crop_image
-from analysis import compute_IoU, compute_mean_IoU, append_dataset_result
+from analysis import compute_IoU, compute_mean_IoU, append_dataset_result, append_global_mean
 from figures import plot_qualitative_results, plot_bar_comparison, plot_violin_iou
 
 logging.basicConfig(
@@ -58,8 +58,8 @@ def main():
     all_ious_per_dataset = {}
     mean_ious = []
 
-    # Iterate over all datasets (1 to 11)
-    for i in range(1, 3):
+    # Iterate over all datasets (1 to 10)
+    for i in range(1, 2):
 
         logger.info(f"-> PROCESSING DATASET {i} <-")
         iou_list = []
@@ -140,6 +140,13 @@ def main():
         # Save mean IoUs in a CSV file
         append_dataset_result(csv_path, i, mean_iou)
 
+    # Compute global mean of means
+    global_mean_iou = float(np.mean(mean_ious)) if len(mean_ious) > 0 else 0.0
+    logger.info(f"Global mean IoU (mean of means): {global_mean_iou:.4f}")
+
+    # Save to CSV
+    append_global_mean(csv_path, global_mean_iou)
+
     # Global qualitative selection (top 3 min, median, max IoU)
     if len(all_results) > 0:
         # Sort by IoU
@@ -192,10 +199,15 @@ def main():
 
     # Article IoUs (from provided table)
     article_ious = [0.337, 0.289, 0.483, 0.678, 0.219, 0.619, 0.325, 0.506, 0.377, 0.603]
+    article_global_mean = 0.461
 
     # Bar comparison
     bar_plot_path = os.path.join(res_dir, "mean_iou_comparison.png")
-    plot_bar_comparison(mean_ious, article_ious[:len(mean_ious)], bar_plot_path)
+    plot_bar_comparison(
+        mean_ious + [global_mean_iou],
+        article_ious[:len(mean_ious)] + [article_global_mean],
+        bar_plot_path
+    )
 
     # Violin plot
     violin_plot_path = os.path.join(res_dir, "iou_violin_plot.png")

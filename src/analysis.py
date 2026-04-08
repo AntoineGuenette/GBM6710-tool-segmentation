@@ -52,3 +52,13 @@ def append_dataset_result(csv_path: str, dataset_id: int, mean_iou: float):
         writer.writerow([dataset_id, f"{mean_iou:.6f}"])
 
     logger.info(f"Saved dataset {dataset_id} result to CSV: mean IoU = {mean_iou:.4f}")
+
+def append_global_mean(csv_path: str, global_mean_iou: float):
+    """
+    Append the global mean IoU (mean of dataset means) to the CSV file.
+    """
+    with open(csv_path, mode='a', newline='') as f:
+        writer = csv.writer(f)
+        writer.writerow(["global_mean", f"{global_mean_iou:.6f}"])
+
+    logger.info(f"Saved global mean IoU to CSV: {global_mean_iou:.4f}")

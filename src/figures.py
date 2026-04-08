@@ -33,7 +33,8 @@ def plot_bar_comparison(mean_ious, article_ious, save_path):
     """
     Plot a bar chart comparing computed mean IoUs vs article IoUs.
     """
-    labels = [f"D{i}" for i in range(1, len(mean_ious) + 1)]
+    labels = [f"D{i}" for i in range(1, len(mean_ious))]
+    labels.append("Global")
 
     x = np.arange(len(labels))
     width = 0.35
@@ -64,6 +65,10 @@ def plot_violin_iou(all_ious, dataset_ids, save_path):
 
     data = [all_ious[d] for d in sorted(dataset_ids)]
 
+    # Add global distribution (all IoUs pooled)
+    global_data = [iou for d in dataset_ids for iou in all_ious[d]]
+    data.append(global_data)
+
     parts = ax.violinplot(data, showmeans=True)
 
     # Set colors manually
@@ -76,8 +81,10 @@ def plot_violin_iou(all_ious, dataset_ids, save_path):
         if key in parts:
             parts[key].set_color("#2E2836")
 
-    ax.set_xticks(range(1, len(dataset_ids) + 1))
-    ax.set_xticklabels([f"D{i}" for i in dataset_ids])
+    ax.set_xticks(range(1, len(dataset_ids) + 2))
+    labels = [f"D{i}" for i in dataset_ids]
+    labels.append("Global")
+    ax.set_xticklabels(labels)
     ax.set_xlabel("Jeux de données (Datasets)")
     ax.set_ylabel("IoU")
     ax.set_title("Distribution des IoU par jeu de données")
