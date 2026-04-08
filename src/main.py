@@ -59,7 +59,7 @@ def main():
     mean_ious = []
 
     # Iterate over all datasets (1 to 11)
-    for i in range(1, 2):
+    for i in range(1, 3):
 
         logger.info(f"-> PROCESSING DATASET {i} <-")
         iou_list = []
@@ -147,15 +147,24 @@ def main():
         n = len(all_results_sorted)
 
         # Select samples
-        min_samples = all_results_sorted[:3]
+
+        # Exclude IoU == 0 for minimum samples
+        non_zero_results = [r for r in all_results_sorted if r["iou"] > 0]
+
+        if len(non_zero_results) >= 3:
+            min_samples = non_zero_results[:3]
+        else:
+            min_samples = non_zero_results  # fallback if not enough samples
+
         max_samples = all_results_sorted[-3:]
+
         median_start = max(0, n // 2 - 1)
         median_samples = all_results_sorted[median_start:median_start + 3]
 
         selected_groups = {
-            "min": min_samples,
-            "median": median_samples,
-            "max": max_samples
+            "minimum": min_samples,
+            "médiane": median_samples,
+            "maximum": max_samples
         }
 
         global_vis_dir = os.path.join(res_dir, "global_qualitative")
