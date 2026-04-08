@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 
 from segmentation import segment_tools, crop_image
 from analysis import compute_IoU, compute_mean_IoU, append_dataset_result
+from figures import plot_qualitative_results, plot_bar_comparison, plot_violin_iou
 
 logging.basicConfig(
     level=logging.INFO,  # temporary default, will be overridden
@@ -54,7 +55,10 @@ def main():
     # Store global IoU results for best/worst/median selection
     all_results = []
 
-    # Iterate over all datasets (1 to 10)
+    all_ious_per_dataset = {}
+    mean_ious = []
+
+    # Iterate over all datasets (1 to 11)
     for i in range(1, 2):
 
         logger.info(f"-> PROCESSING DATASET {i} <-")
@@ -115,36 +119,22 @@ def main():
                     "save_dir": save_dir
                 })
 
-                # Save complete qualitative visualization
-                fig, axes = plt.subplots(2, 2, figsize=(8, 8))
-
-                axes[0,0].imshow(img_crop)
-                axes[0,0].set_title("Original Image")
-                axes[0,0].axis("off")
-
-                axes[0,1].imshow(GT_mask, cmap="gray")
-                axes[0,1].set_title("Ground Truth")
-                axes[0,1].axis("off")
-
-                axes[1,0].imshow(prob_map, cmap="gray")
-                axes[1,0].set_title("Probability Map")
-                axes[1,0].axis("off")
-
-                axes[1,1].imshow(computed_mask, cmap="gray")
-                axes[1,1].set_title("Final Mask")
-                axes[1,1].axis("off")
-
-                plt.suptitle(f"{filename}\nIoU: {iou:.4f}")
-                plt.tight_layout()
-
                 qual_res_file_name = 'QualRes_' + filename
                 qual_res_file_path = os.path.join(save_dir, 'qualitative_results', qual_res_file_name)
-                os.makedirs(os.path.dirname(qual_res_file_path), exist_ok=True)
-                plt.savefig(qual_res_file_path, dpi=300)
-                plt.close(fig)
+
+                plot_qualitative_results(
+                    img_crop,
+                    GT_mask,
+                    prob_map,
+                    computed_mask,
+                    title=f"{filename}\nIoU: {iou:.4f}",
+                    save_path=qual_res_file_path
+                )
 
         # Compute mean IoU
         mean_iou = compute_mean_IoU(iou_list)
+        all_ious_per_dataset[i] = iou_list
+        mean_ious.append(mean_iou)
         logger.info(f"Dataset {i} - Mean IoU: {mean_iou:.4f}")
 
         # Save mean IoUs in a CSV file
@@ -173,35 +163,36 @@ def main():
 
         for key, samples in selected_groups.items():
             for idx, sample in enumerate(samples):
-                fig, axes = plt.subplots(2, 2, figsize=(8, 8))
-
-                axes[0,0].imshow(sample["img_crop"])
-                axes[0,0].set_title("Original Image")
-                axes[0,0].axis("off")
-
-                axes[0,1].imshow(sample["GT_mask"], cmap="gray")
-                axes[0,1].set_title("Ground Truth")
-                axes[0,1].axis("off")
-
-                axes[1,0].imshow(sample["prob_map"], cmap="gray")
-                axes[1,0].set_title("Probability Map")
-                axes[1,0].axis("off")
-
-                axes[1,1].imshow(sample["computed_mask"], cmap="gray")
-                axes[1,1].set_title("Final Mask")
-                axes[1,1].axis("off")
-
-                plt.suptitle(f"{sample['filename']} ({key} #{idx+1})\nIoU: {sample['iou']:.4f}")
-                plt.tight_layout()
-
                 out_path = os.path.join(
                     global_vis_dir,
                     f"{key}_{idx+1}_IoU_{sample['iou']:.4f}.png"
                 )
-                plt.savefig(out_path, dpi=300)
-                plt.close()
+
+                plot_qualitative_results(
+                    sample["img_crop"],
+                    sample["GT_mask"],
+                    sample["prob_map"],
+                    sample["computed_mask"],
+                    title=f"{sample['filename']} ({key} #{idx+1})\nIoU: {sample['iou']:.4f}",
+                    save_path=out_path
+                )
 
         logger.info("Saved global qualitative samples (top 3 min, median, max IoU)")
+
+    # Quantitative plots
+
+    # Article IoUs (from provided table)
+    article_ious = [0.337, 0.289, 0.483, 0.678, 0.219, 0.619, 0.325, 0.506, 0.377, 0.603]
+
+    # Bar comparison
+    bar_plot_path = os.path.join(res_dir, "mean_iou_comparison.png")
+    plot_bar_comparison(mean_ious, article_ious[:len(mean_ious)], bar_plot_path)
+
+    # Violin plot
+    violin_plot_path = os.path.join(res_dir, "iou_violin_plot.png")
+    plot_violin_iou(all_ious_per_dataset, list(all_ious_per_dataset.keys()), violin_plot_path)
+
+    logger.info("Saved quantitative plots (bar + violin)")
 
 if __name__ == "__main__" :
     main()
