@@ -48,7 +48,7 @@ def plot_qualitative_results(img_crop, GT_mask, prob_map, computed_mask, title, 
     plt.close(fig)
 
 
-def plot_bar_comparison(mean_ious, article_ious, save_path): # TODO : Add value on top of bar
+def plot_bar_comparison(mean_ious, article_ious, save_path):
     """
     Plot a bar chart comparing computed mean IoUs vs article IoUs.
     """
