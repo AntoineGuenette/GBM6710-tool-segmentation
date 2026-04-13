@@ -1,5 +1,3 @@
-import cv2
-from segmentation import crop_image
 import os
 import matplotlib.pyplot as plt
 import numpy as np
@@ -50,7 +48,7 @@ def plot_qualitative_results(img_crop, GT_mask, prob_map, computed_mask, title, 
     plt.close(fig)
 
 
-def plot_bar_comparison(mean_ious, article_ious, save_path):
+def plot_bar_comparison(mean_ious, article_ious, save_path): # TODO : Add value on top of bar
     """
     Plot a bar chart comparing computed mean IoUs vs article IoUs.
     """
@@ -60,14 +58,20 @@ def plot_bar_comparison(mean_ious, article_ious, save_path):
     x = np.arange(len(labels))
     width = 0.35
 
-    fig, ax = plt.subplots()
+    fig, ax = plt.subplots(figsize=(12,6))
 
     ax.bar(x - width/2, mean_ious, width, label="IoUs calculés", color="#ACBED8")
     ax.bar(x + width/2, article_ious[:len(mean_ious)], width, label="IoUs de référence\n(Article)", color="#2E2836")
 
+    # Add value labels on top of bars
+    for i, v in enumerate(mean_ious):
+        ax.text(i - width/2, v, f"{v:.3f}", ha='center', va='bottom', fontsize=8)
+    for i, v in enumerate(article_ious[:len(mean_ious)]):
+        ax.text(i + width/2, v, f"{v:.3f}", ha='center', va='bottom', fontsize=8)
+
     ax.set_xlabel("Jeux de données (Datasets)")
     ax.set_ylabel("IoU moyen")
-    ax.set_title("Comparaison des IoU moyens")
+    ax.set_title(r"$\bf{Figure\ 10}$ – Comparaison des IoUs moyens")
     ax.set_xticks(x)
     ax.set_xticklabels(labels)
     ax.legend()
@@ -82,7 +86,7 @@ def plot_violin_iou(all_ious, dataset_ids, save_path):
     """
     Plot violin plot of IoU distributions per dataset.
     """
-    fig, ax = plt.subplots()
+    fig, ax = plt.subplots(figsize=(12,6))
 
     data = [all_ious[d] for d in sorted(dataset_ids)]
 
@@ -90,17 +94,38 @@ def plot_violin_iou(all_ious, dataset_ids, save_path):
     global_data = [iou for d in dataset_ids for iou in all_ious[d]]
     data.append(global_data)
 
-    parts = ax.violinplot(data, showmeans=True)
+    parts = ax.violinplot(data, showmeans=False, showmedians=False, showextrema=False)
 
     # Set colors manually
     for pc in parts['bodies']:
         pc.set_facecolor("#ACBED8")
-        pc.set_edgecolor("#ACBED8")
+        pc.set_edgecolor("none")
         pc.set_alpha(0.8)
-    # Couleur des lignes (type boxplot interne)
-    for key in ['cmeans', 'cbars', 'cmins', 'cmaxes']:
+
+    # Remove default violin lines to avoid overlap with boxplot
+    for key in ['cbars', 'cmins', 'cmaxes']:
         if key in parts:
-            parts[key].set_color("#2E2836")
+            parts[key].set_visible(False)
+
+    # Overlay boxplot
+    box = ax.boxplot(
+        data,
+        positions=range(1, len(data) + 1),
+        widths=0.15,
+        patch_artist=True,
+        showfliers=False
+    )
+
+    # Style boxplot
+    for patch in box['boxes']:
+        patch.set_facecolor("none")
+        patch.set_edgecolor("#2E2836")
+        patch.set_linewidth(1.5)
+
+    for element in ['whiskers', 'caps', 'medians']:
+        for line in box[element]:
+            line.set_color("#2E2836")
+            line.set_linewidth(1.5)
 
     ax.set_xticks(range(1, len(dataset_ids) + 2))
     labels = [f"D{i}" for i in dataset_ids]
@@ -108,7 +133,7 @@ def plot_violin_iou(all_ious, dataset_ids, save_path):
     ax.set_xticklabels(labels)
     ax.set_xlabel("Jeux de données (Datasets)")
     ax.set_ylabel("IoU")
-    ax.set_title("Distribution des IoU par jeu de données")
+    ax.set_title(r"$\bf{Figure\ 9}$ – Distribution des IoUs par jeu de données")
 
     plt.tight_layout()
     os.makedirs(os.path.dirname(save_path), exist_ok=True)
