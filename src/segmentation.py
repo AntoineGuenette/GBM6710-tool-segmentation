@@ -130,7 +130,7 @@ def crop_image(img: np.array, crop_pix_x: int, crop_pix_y: int, width: int, heig
 
 def color_filtering(img_rgb: np.array) -> np.array:
     # Convert RGB image to HSV
-    img_hsv = cv2.cvtColor(img_rgb, cv2.COLOR_RGB2HSV)
+    img_hsv = cv2.cvtColor(img_rgb, cv2.COLOR_BGR2HSV)
     h = img_hsv[:,:,0] # possible values : 0-179
     s = img_hsv[:,:,1] # possible values : 0-255
     v = img_hsv[:,:,2] # possible values : 0-255
