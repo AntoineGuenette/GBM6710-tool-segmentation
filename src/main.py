@@ -3,7 +3,7 @@ import os
 import logging
 import cv2
 import numpy as np
-import matplotlib.pyplot as plt
+import shutil
 
 from segmentation import segment_tools, crop_image
 from analysis import compute_IoU, compute_mean_IoU, append_dataset_result, append_global_mean, save_all_ious, load_all_ious
@@ -136,6 +136,8 @@ def main():
                     iou = compute_IoU(pred_mask, gt_mask)
                     iou_list.append(iou)
 
+                    prob_map_path = os.path.join(save_dir, 'prob_maps', 'prob_' + filename)
+
                     # Store for global qualitative selection
                     all_results.append({
                         "iou": iou,
@@ -143,6 +145,7 @@ def main():
                         "frame_path": frame_path,
                         "gt_path": gt_mask_path,
                         "pred_mask_path": pred_mask_path,
+                        "prob_map_path": prob_map_path,
                         "save_dir": save_dir
                     })
 
@@ -171,12 +174,15 @@ def main():
                         iou = compute_IoU(computed_mask_bin, GT_mask_bin)
                         iou_list.append(iou)
 
+                        prob_map_path = os.path.join(save_dir, 'prob_maps', 'prob_' + filename)
+
                         all_results.append({
                             "iou": iou,
                             "filename": filename,
                             "frame_path": frame_path,
                             "gt_path": gt_mask_path,
                             "pred_mask_path": mask_path,
+                            "prob_map_path": prob_map_path,
                             "save_dir": save_dir
                         })
 
@@ -247,31 +253,20 @@ def main():
                     f"{key}_{idx+1}_IoU_{sample['iou']:.4f}.png"
                 )
 
-                # --- Reload data on demand ---
-                original_img = cv2.imread(sample["frame_path"])
-                if original_img is None:
-                    continue
-                original_img_rgb = cv2.cvtColor(original_img, cv2.COLOR_BGR2RGB)
-                img_crop = crop_image(original_img_rgb, 328, 37, 1264, 1010)
+                # Path to existing qualitative result
+                qual_filename = 'QualRes_' + sample["filename"]
+                src_path = os.path.join(sample["save_dir"], 'qualitative_results', qual_filename)
 
-                pred_mask = cv2.imread(sample["pred_mask_path"], cv2.IMREAD_GRAYSCALE)
-                gt_mask = cv2.imread(sample["gt_path"], cv2.IMREAD_GRAYSCALE)
-                if pred_mask is None or gt_mask is None:
+                if not os.path.exists(src_path):
                     continue
 
-                gt_mask = crop_image(gt_mask, 328, 37, 1264, 1010)
+                # Build informative filename
+                dataset_name = os.path.basename(sample["save_dir"])
+                dataset_number = dataset_name.split('_')[-1]
+                new_name = f"{key}_IoU_{sample['iou']:.4f}_dataset{dataset_number}_{sample['filename'].replace('.png','')}.png"
+                dst_path = os.path.join(global_vis_dir, new_name)
 
-                pred_mask = (pred_mask > 0).astype(np.uint8)
-                gt_mask = (gt_mask > 0).astype(np.uint8)
-
-                plot_qualitative_results(
-                    img_crop,
-                    gt_mask,
-                    pred_mask,
-                    pred_mask,
-                    title=f"{sample['filename']} ({key} #{idx+1})\nIoU: {sample['iou']:.4f}",
-                    save_path=out_path
-                )
+                shutil.copy(src_path, dst_path)
 
         logger.info("Saved global qualitative samples (top 3 min, median, max IoU)")
 
