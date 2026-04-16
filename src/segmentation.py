@@ -6,9 +6,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-from matplotlib.figure import Figure
-
-def segment_tools(img_path: str, save_dir: str=None, debug: bool=False):
+def segment_tools(img_path: str, dataset_dir: str=None, save_subdir: str=None, debug: bool=False, method: str="valid_region"):
     # Load image
     img = cv2.imread(img_path)
     if img is None:
@@ -31,14 +29,21 @@ def segment_tools(img_path: str, save_dir: str=None, debug: bool=False):
     # Extract features
     edge_mask = extract_edges(img_crop)
     shape_mask = extract_elongated_shapes(color_mask)
-    border_mask = extract_border_regions(color_mask)
+
+    # Select region mask based on method
+    if method == "border":
+        region_mask = extract_border_regions(color_mask)
+    elif method == "valid_region":
+        region_mask = extract_big_regions(color_mask)
+    else:
+        raise ValueError("Unknown method")
 
     # Convert masks to probabilities
     color_prob = color_mask.astype(np.float32) / 255
     grabcut_prob = grabcut_mask.astype(np.float32) / 255
     edge_prob = edge_mask.astype(np.float32) / 255
     shape_prob = shape_mask.astype(np.float32) / 255
-    border_prob = border_mask.astype(np.float32) / 255
+    region_prob = region_mask.astype(np.float32) / 255
 
     # Compute blur level and dynamic weights
     blur_score = compute_blur_score(img_crop)
@@ -54,24 +59,27 @@ def segment_tools(img_path: str, save_dir: str=None, debug: bool=False):
         w_edge * edge_prob +
         w_shape * shape_prob
     )
-    prob_map *= border_prob
+    prob_map *= region_prob
 
     # Threshold
     final_mask = (prob_map > 0.5).astype(np.uint8) * 255
 
-    if save_dir is not None:
-        # Save cropped original image
+    if dataset_dir is not None and save_subdir is not None:
         img_name = os.path.basename(img_path)
+
+        # Cropped image (shared)
         crop_img_name = 'cropped_' + img_name
-        crop_image_path = os.path.join(save_dir, 'cropped_images', crop_img_name)
+        crop_image_path = os.path.join(dataset_dir, 'cropped_images', crop_img_name)
         os.makedirs(os.path.dirname(crop_image_path), exist_ok=True)
         plt.imsave(crop_image_path, img_crop, dpi=300)
 
-        # Save binary mask (prediction)
+        # Method-specific directories
+        method_dir = os.path.join(dataset_dir, save_subdir)
+
+        # Binary mask
         mask_name = 'bin_' + img_name
-        mask_path = os.path.join(save_dir, 'binary_segmentations', mask_name)
+        mask_path = os.path.join(method_dir, 'binary_segmentations', mask_name)
         os.makedirs(os.path.dirname(mask_path), exist_ok=True)
-        # Save using OpenCV to ensure 0/255 uint8
         cv2.imwrite(mask_path, final_mask)
 
     # Show images and computed features if specified
@@ -102,8 +110,8 @@ def segment_tools(img_path: str, save_dir: str=None, debug: bool=False):
         axes[1,1].set_title("Shape mask")
         axes[1,1].axis("off")
 
-        axes[1,2].imshow(border_mask, cmap="gray")
-        axes[1,2].set_title("Border mask")
+        axes[1,2].imshow(region_mask, cmap="gray")
+        axes[1,2].set_title("Region mask")
         axes[1,2].axis("off")
 
         axes[1,3].imshow(final_mask, cmap="gray")
@@ -115,10 +123,10 @@ def segment_tools(img_path: str, save_dir: str=None, debug: bool=False):
                      Weights = color:{w_color:.3f}, grabcut:{w_grabcut:.3f}, edge:{w_edge:.3f}, shape:{w_shape:.3f}")
         plt.tight_layout()
         
-        if save_dir is not None:
+        if dataset_dir is not None and save_subdir is not None:
             # Save debug file
             debug_file_name = 'DEBUG_' + img_name
-            debug_file_path = os.path.join(save_dir, 'DEBUG', debug_file_name)
+            debug_file_path = os.path.join(dataset_dir, save_subdir, 'DEBUG', debug_file_name)
             os.makedirs(os.path.dirname(debug_file_path), exist_ok=True)
             plt.savefig(debug_file_path, dpi=300)
         plt.close(fig)
@@ -210,6 +218,22 @@ def extract_elongated_shapes(mask):
             shape_mask[labels == i] = 255.0
 
     return shape_mask
+
+def extract_big_regions(mask, min_size: int = 1000):
+    # Label connected components
+    num_labels, labels, stats, _ = cv2.connectedComponentsWithStats(mask)
+
+    # Initialize output mask
+    big_regions_mask = np.zeros_like(mask, dtype=np.float32)
+
+    for i in range(1, num_labels):
+        area = stats[i, cv2.CC_STAT_AREA]
+
+        # Keep only regions larger than threshold
+        if area >= min_size:
+            big_regions_mask[labels == i] = 255.0
+
+    return big_regions_mask
 
 def extract_border_regions(mask):
     # Label all separate regions

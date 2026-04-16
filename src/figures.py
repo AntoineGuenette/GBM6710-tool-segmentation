@@ -48,26 +48,44 @@ def plot_qualitative_results(img_crop, GT_mask, prob_map, computed_mask, title, 
     plt.close(fig)
 
 
-def plot_bar_comparison(mean_ious, article_ious, save_path):
+def plot_bar_comparison(mean_ious_border, mean_ious_valid, article_ious, save_path):
     """
-    Plot a bar chart comparing computed mean IoUs vs article IoUs.
+    Plot a bar chart comparing IoUs per dataset + global for 3 methods
     """
-    labels = [f"D{i}" for i in range(1, len(mean_ious))]
+
+    # Nombre de datasets
+    n = len(mean_ious_border)
+
+    # Labels avec Global
+    labels = [f"D{i+1}" for i in range(n)]
     labels.append("Global")
 
+    # Ajouter la moyenne globale à la fin
+    mean_ious_border_ext = mean_ious_border + [np.mean(mean_ious_border)]
+    mean_ious_valid_ext = mean_ious_valid + [np.mean(mean_ious_valid)]
+    article_ious_ext = article_ious[:n] + [np.mean(article_ious[:n])]
+
     x = np.arange(len(labels))
-    width = 0.35
+    width = 0.25
 
-    fig, ax = plt.subplots(figsize=(12,6))
+    fig, ax = plt.subplots(figsize=(12, 6))
 
-    ax.bar(x - width/2, mean_ious, width, label="IoUs calculés", color="#ACBED8")
-    ax.bar(x + width/2, article_ious[:len(mean_ious)], width, label="IoUs de référence\n(Article)", color="#2E2836")
-
-    # Add value labels on top of bars
-    for i, v in enumerate(mean_ious):
-        ax.text(i - width/2, v, f"{v:.3f}", ha='center', va='bottom', fontsize=8)
-    for i, v in enumerate(article_ious[:len(mean_ious)]):
-        ax.text(i + width/2, v, f"{v:.3f}", ha='center', va='bottom', fontsize=8)
+    bars1 = ax.bar(x - width, article_ious_ext, width, label="Référence (Article)", color="#2E2836")
+    bars2 = ax.bar(x, mean_ious_border_ext, width, label="Ré-implémentation", color="#6A8CAF")
+    bars3 = ax.bar(x + width, mean_ious_valid_ext, width, label="Méthode améliorée", color="#ACBED8")
+    
+    # Labels au-dessus des barres
+    for bars in [bars1, bars2, bars3]:
+        for bar in bars:
+            height = bar.get_height()
+            ax.text(
+                bar.get_x() + bar.get_width()/2,
+                height,
+                f"{height:.3f}",
+                ha='center',
+                va='bottom',
+                fontsize=8
+            )
 
     ax.set_xlabel("Jeux de données (Datasets)")
     ax.set_ylabel("IoU moyen")
