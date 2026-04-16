@@ -6,8 +6,8 @@ import numpy as np
 import shutil
 
 from segmentation import segment_tools, crop_image
-from analysis import compute_IoU, compute_mean_IoU, append_dataset_result, append_global_mean, save_all_ious, load_all_ious
-from figures import plot_qualitative_results, plot_bar_comparison, plot_violin_iou
+from analysis import compute_Dice, compute_mean_Dice, append_dataset_result, append_global_mean, save_all_dice, load_all_dice
+from figures import plot_qualitative_results, plot_bar_comparison, plot_violin_dice
 
 logging.basicConfig(
     level=logging.INFO,  # temporary default, will be overridden
@@ -31,7 +31,7 @@ def parse_args():
     parser.add_argument(
         "--skip-analysis",
         action="store_true",
-        help="Skip segmentation and IoU computation, load from CSV instead"
+        help="Skip segmentation and Dice computation, load from CSV instead"
     )
     return parser.parse_args()
 
@@ -55,30 +55,30 @@ def main():
     GT_dir = os.path.join(data_dir, 'ground_truth')
     test_set_dir = os.path.join(data_dir, 'test_set')
     res_dir = os.path.join(data_dir, '..', 'res')
-    mean_ious_csv_path = os.path.join(res_dir, "mean_ious.csv")
-    all_ious_csv_path_border = os.path.join(res_dir, "all_ious_border.csv")
-    all_ious_csv_path_valid = os.path.join(res_dir, "all_ious_valid.csv")
+    mean_dice_csv_path = os.path.join(res_dir, "mean_dice.csv")
+    all_dice_csv_path_border = os.path.join(res_dir, "all_dice_border.csv")
+    all_dice_csv_path_valid = os.path.join(res_dir, "all_dice_valid.csv")
 
     if args.skip_analysis:
         # For skip-analysis, load both border and valid csvs
-        all_ious_border, all_ious_valid = load_all_ious(all_ious_csv_path_border)
-        all_ious_per_dataset = {d: {"border": all_ious_border[d], "valid_region": all_ious_valid[d]} for d in all_ious_border}
-        dataset_ids = list(all_ious_per_dataset.keys())
-        mean_ious = [{"border": compute_mean_IoU(all_ious_per_dataset[d]["border"]),
-                      "valid_region": compute_mean_IoU(all_ious_per_dataset[d]["valid_region"])} for d in dataset_ids]
+        all_dice_border, all_dice_valid = load_all_dice(all_dice_csv_path_border)
+        all_dice_per_dataset = {d: {"border": all_dice_border[d], "valid_region": all_dice_valid[d]} for d in all_dice_border}
+        dataset_ids = list(all_dice_per_dataset.keys())
+        mean_dice = [{"border": compute_mean_Dice(all_dice_per_dataset[d]["border"]),
+                      "valid_region": compute_mean_Dice(all_dice_per_dataset[d]["valid_region"])} for d in dataset_ids]
     else:
-        # Store global IoU results for best/worst/median selection
+        # Store global Dice results for best/worst/median selection
         all_results = []
 
-        all_ious_per_dataset = {}
-        mean_ious = []
+        all_dice_per_dataset = {}
+        mean_dice = []
 
         # Iterate over all datasets (1 to 10)
         for i in range(1, 2):
 
             logger.info(f"-> PROCESSING DATASET {i} <-")
-            iou_list_border = []
-            iou_list_valid = []
+            dice_list_border = []
+            dice_list_valid = []
 
             # Define dataset-specific paths
             GT_frames_dir = os.path.join(GT_dir, f'instrument_dataset_{i}', 'BinarySegmentation')
@@ -140,22 +140,22 @@ def main():
                     gt_mask = crop_image(gt_mask, 328, 37, 1264, 1010)
                     gt_mask = (gt_mask > 0).astype(np.uint8)
 
-                    iou_valid = compute_IoU(pred_mask_valid, gt_mask)
-                    iou_list_valid.append(iou_valid)
+                    dice_valid = compute_Dice(pred_mask_valid, gt_mask)
+                    dice_list_valid.append(dice_valid)
 
                     # Load BORDER mask
                     pred_mask_border = cv2.imread(mask_path_border, cv2.IMREAD_GRAYSCALE)
                     pred_mask_border = (pred_mask_border > 0).astype(np.uint8)
 
-                    iou_border = compute_IoU(pred_mask_border, gt_mask)
-                    iou_list_border.append(iou_border)
+                    dice_border = compute_Dice(pred_mask_border, gt_mask)
+                    dice_list_border.append(dice_border)
 
                     prob_map_path = os.path.join(dataset_dir, 'prob_maps', 'prob_' + filename)
 
                     # Store for global qualitative selection
                     all_results.append({
-                        "iou_valid": iou_valid,
-                        "iou_border": iou_border,
+                        "dice_valid": dice_valid,
+                        "dice_border": dice_border,
                         "filename": filename,
                         "frame_path": frame_path,
                         "gt_path": gt_mask_path,
@@ -183,30 +183,30 @@ def main():
                         computed_mask_bin_valid = (computed_mask_valid > 0).astype(np.uint8)
                         GT_mask_bin = (GT_mask > 0).astype(np.uint8)
                     else:
-                        logger.warning(f"Missing mask for {filename}, skipping IoU computation")
+                        logger.warning(f"Missing mask for {filename}, skipping Dice computation")
                         computed_mask_bin_border = None
                         computed_mask_bin_valid = None
                         GT_mask_bin = None
 
                     if computed_mask_bin_border is not None and GT_mask_bin is not None:
-                        # Compute IoU border
-                        iou_border = compute_IoU(computed_mask_bin_border, GT_mask_bin)
-                        iou_list_border.append(iou_border)
+                        # Compute Dice border
+                        dice_border = compute_Dice(computed_mask_bin_border, GT_mask_bin)
+                        dice_list_border.append(dice_border)
                     else:
-                        iou_border = None
+                        dice_border = None
 
                     if computed_mask_bin_valid is not None and GT_mask_bin is not None:
-                        # Compute IoU valid region
-                        iou_valid = compute_IoU(computed_mask_bin_valid, GT_mask_bin)
-                        iou_list_valid.append(iou_valid)
+                        # Compute Dice valid region
+                        dice_valid = compute_Dice(computed_mask_bin_valid, GT_mask_bin)
+                        dice_list_valid.append(dice_valid)
                     else:
-                        iou_valid = None
+                        dice_valid = None
 
                     prob_map_path = os.path.join(dataset_dir, 'prob_maps', 'prob_' + filename)
 
                     all_results.append({
-                        "iou_valid": iou_valid,
-                        "iou_border": iou_border,
+                        "dice_valid": dice_valid,
+                        "dice_border": dice_border,
                         "filename": filename,
                         "frame_path": frame_path,
                         "gt_path": gt_mask_path,
@@ -221,7 +221,7 @@ def main():
                         GT_mask_bin,
                         prob_map_valid,
                         computed_mask_bin_valid,
-                        title=f"{filename}\nIoU valid: {iou_valid:.4f}",
+                        title=f"{filename}\nDice valid: {dice_valid:.4f}",
                         save_path=qual_res_file_path_valid
                     )
 
@@ -231,61 +231,61 @@ def main():
                         GT_mask_bin,
                         prob_map_border,
                         computed_mask_bin_border,
-                        title=f"{filename}\nIoU border: {iou_border:.4f}",
+                        title=f"{filename}\nDice border: {dice_border:.4f}",
                         save_path=qual_res_file_path_border
                     )
 
-            # Compute mean IoU for both methods
-            mean_iou_border = compute_mean_IoU(iou_list_border)
-            mean_iou_valid = compute_mean_IoU(iou_list_valid)
-            all_ious_per_dataset[i] = {
-                "border": iou_list_border,
-                "valid_region": iou_list_valid
+            # Compute mean Dice for both methods
+            mean_dice_border = compute_mean_Dice(dice_list_border)
+            mean_dice_valid = compute_mean_Dice(dice_list_valid)
+            all_dice_per_dataset[i] = {
+                "border": dice_list_border,
+                "valid_region": dice_list_valid
             }
-            mean_ious.append({
-                "border": mean_iou_border,
-                "valid_region": mean_iou_valid
+            mean_dice.append({
+                "border": mean_dice_border,
+                "valid_region": mean_dice_valid
             })
-            logger.info(f"Dataset {i} - Mean IoU Border: {mean_iou_border:.4f} Valid Region: {mean_iou_valid:.4f}")
+            logger.info(f"Dataset {i} - Mean Dice Border: {mean_dice_border:.4f} Valid Region: {mean_dice_valid:.4f}")
 
-            # Save mean IoUs in a CSV file with two columns
-            file_exists = os.path.isfile(mean_ious_csv_path)
-            with open(mean_ious_csv_path, 'a', newline='') as f:
+            # Save mean Dice in a CSV file with two columns
+            file_exists = os.path.isfile(mean_dice_csv_path)
+            with open(mean_dice_csv_path, 'a', newline='') as f:
                 import csv
                 writer = csv.writer(f)
 
                 if not file_exists:
-                    writer.writerow(["dataset_id", "mean_IoU_border", "mean_IoU_valid_region"])
+                    writer.writerow(["dataset_id", "mean_Dice_border", "mean_Dice_valid_region"])
 
-                writer.writerow([i, f"{mean_iou_border:.6f}", f"{mean_iou_valid:.6f}"])
+                writer.writerow([i, f"{mean_dice_border:.6f}", f"{mean_dice_valid:.6f}"])
 
-        # Save all IoUs to CSV
+        # Save all Dice to CSV
         # Save separate CSVs for border and valid
-        flattened_ious_border = {}
-        flattened_ious_valid = {}
-        for dataset_id, iou_dict in all_ious_per_dataset.items():
-            flattened_ious_border[dataset_id] = iou_dict["border"]
-            flattened_ious_valid[dataset_id] = iou_dict["valid_region"]
+        flattened_dice_border = {}
+        flattened_dice_valid = {}
+        for dataset_id, dice_dict in all_dice_per_dataset.items():
+            flattened_dice_border[dataset_id] = dice_dict["border"]
+            flattened_dice_valid[dataset_id] = dice_dict["valid_region"]
 
-        save_all_ious(all_ious_csv_path_border, flattened_ious_border, {d: [] for d in flattened_ious_border})
-        save_all_ious(all_ious_csv_path_valid, {d: [] for d in flattened_ious_valid}, flattened_ious_valid)
+        save_all_dice(all_dice_csv_path_border, flattened_dice_border, {d: [] for d in flattened_dice_border})
+        save_all_dice(all_dice_csv_path_valid, {d: [] for d in flattened_dice_valid}, flattened_dice_valid)
 
-    dataset_ids = list(all_ious_per_dataset.keys())
+    dataset_ids = list(all_dice_per_dataset.keys())
 
     # Compute global mean of means for both methods
-    global_mean_iou_border = float(np.mean([m["border"] for m in mean_ious])) if len(mean_ious) > 0 else 0.0
-    global_mean_iou_valid = float(np.mean([m["valid_region"] for m in mean_ious])) if len(mean_ious) > 0 else 0.0
-    logger.info(f"Global mean IoU Border (mean of means): {global_mean_iou_border:.4f}")
-    logger.info(f"Global mean IoU Valid Region (mean of means): {global_mean_iou_valid:.4f}")
+    global_mean_dice_border = float(np.mean([m["border"] for m in mean_dice])) if len(mean_dice) > 0 else 0.0
+    global_mean_dice_valid = float(np.mean([m["valid_region"] for m in mean_dice])) if len(mean_dice) > 0 else 0.0
+    logger.info(f"Global mean Dice Border (mean of means): {global_mean_dice_border:.4f}")
+    logger.info(f"Global mean Dice Valid Region (mean of means): {global_mean_dice_valid:.4f}")
 
     # Save to CSV global means
-    with open(mean_ious_csv_path, 'a', newline='') as f:
+    with open(mean_dice_csv_path, 'a', newline='') as f:
         import csv
         writer = csv.writer(f)
-        writer.writerow(["global_mean", f"{global_mean_iou_border:.6f}", f"{global_mean_iou_valid:.6f}"])
+        writer.writerow(["global_mean", f"{global_mean_dice_border:.6f}", f"{global_mean_dice_valid:.6f}"])
 
     # Global qualitative selection for BOTH methods (border + valid)
-    if len(all_ious_per_dataset) > 0:
+    if len(all_dice_per_dataset) > 0:
 
         global_vis_dir = os.path.join(res_dir, "global_qualitative")
         border_dir = os.path.join(global_vis_dir, "border")
@@ -295,20 +295,20 @@ def main():
 
         for method in ["border", "valid_region"]:
 
-            # Select correct directory and IoU key
+            # Select correct directory and Dice key
             if method == "border":
                 save_dir_method = border_dir
-                iou_key = "border"
+                dice_key = "border"
             else:
                 save_dir_method = valid_dir
-                iou_key = "valid_region"
+                dice_key = "valid_region"
 
-            # Build flat list of results with IoU and metadata
+            # Build flat list of results with Dice and metadata
             method_results = []
-            for d in all_ious_per_dataset:
-                for idx, iou in enumerate(all_ious_per_dataset[d][iou_key]):
+            for d in all_dice_per_dataset:
+                for idx, dice in enumerate(all_dice_per_dataset[d][dice_key]):
                     method_results.append({
-                        "iou": iou,
+                        "dice": dice,
                         "dataset_id": d,
                         "index": idx
                     })
@@ -316,12 +316,12 @@ def main():
             if len(method_results) == 0:
                 continue
 
-            # Sort by IoU
-            method_results_sorted = sorted(method_results, key=lambda x: x["iou"])
+            # Sort by Dice
+            method_results_sorted = sorted(method_results, key=lambda x: x["dice"])
             n = len(method_results_sorted)
 
-            # Exclude IoU == 0 for minimum samples
-            non_zero_results = [r for r in method_results_sorted if r["iou"] > 0]
+            # Exclude Dice == 0 for minimum samples
+            non_zero_results = [r for r in method_results_sorted if r["dice"] > 0]
 
             if len(non_zero_results) >= 3:
                 min_samples = non_zero_results[:3]
@@ -367,7 +367,7 @@ def main():
                     if not os.path.exists(src_path):
                         continue
 
-                    new_name = f"{key}_IoU_{sample['iou']:.4f}_dataset{dataset_id}_{filename.replace('.png','')}.png"
+                    new_name = f"{key}_Dice_{sample['dice']:.4f}_dataset{dataset_id}_{filename.replace('.png','')}.png"
                     dst_path = os.path.join(save_dir_method, new_name)
 
                     shutil.copy(src_path, dst_path)
@@ -377,36 +377,40 @@ def main():
     # Quantitative plots
 
     if args.skip_analysis:
-        if not os.path.exists(all_ious_csv_path_border) or not os.path.exists(all_ious_csv_path_valid):
+        if not os.path.exists(all_dice_csv_path_border) or not os.path.exists(all_dice_csv_path_valid):
             raise FileNotFoundError(
-                "IoU CSV files not found. Run without --skip-analysis first."
+                "Dice CSV files not found. Run without --skip-analysis first."
             )
 
-    # Article IoUs (from provided table)
+    # Article IoU (from provided table)
     article_ious = [0.337, 0.289, 0.483, 0.678, 0.219, 0.619, 0.325, 0.506, 0.377, 0.603]
-    article_global_mean = 0.461
+    article_mean_iou = 0.461
+
+    # Convert IoU (article) to Dice:
+    article_dice = [(2 * iou) / (1 + iou) for iou in article_ious]
+    article_mean_dice = (2 * article_mean_iou) / (1 + article_mean_iou)
 
     # Bar comparison with three methods
-    mean_ious_border = [m["border"] for m in mean_ious]
-    mean_ious_valid = [m["valid_region"] for m in mean_ious]
-    bar_plot_path = os.path.join(res_dir, "mean_iou_comparison.png")
+    mean_dice_border = [m["border"] for m in mean_dice]
+    mean_dice_valid = [m["valid_region"] for m in mean_dice]
+    bar_plot_path = os.path.join(res_dir, "mean_dice_comparison.png")
     plot_bar_comparison(
-        mean_ious_border,
-        mean_ious_valid,
-        article_ious,
+        mean_dice_border + [global_mean_dice_border],
+        mean_dice_valid + [global_mean_dice_valid],
+        article_dice[:len(mean_dice)] + [article_mean_dice],
         bar_plot_path
     )
 
     # Violin plots for both methods
-    violin_plot_path_border = os.path.join(res_dir, "iou_violin_border.png")
-    violin_plot_path_valid = os.path.join(res_dir, "iou_violin_valid_region.png")
+    violin_plot_path_border = os.path.join(res_dir, "dice_violin_border.png")
+    violin_plot_path_valid = os.path.join(res_dir, "dice_violin_valid_region.png")
 
-    # Prepare IoU data for border and valid_region
-    iou_border_dict = {d: all_ious_per_dataset[d]["border"] for d in dataset_ids}
-    iou_valid_dict = {d: all_ious_per_dataset[d]["valid_region"] for d in dataset_ids}
+    # Prepare Dice data for border and valid_region
+    dice_border_dict = {d: all_dice_per_dataset[d]["border"] for d in dataset_ids}
+    dice_valid_dict = {d: all_dice_per_dataset[d]["valid_region"] for d in dataset_ids}
 
-    plot_violin_iou(iou_border_dict, dataset_ids, violin_plot_path_border)
-    plot_violin_iou(iou_valid_dict, dataset_ids, violin_plot_path_valid)
+    plot_violin_dice(dice_border_dict, dataset_ids, violin_plot_path_border)
+    plot_violin_dice(dice_valid_dict, dataset_ids, violin_plot_path_valid)
 
     logger.info("Saved quantitative plots (bar + violin)")
 

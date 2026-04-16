@@ -48,31 +48,27 @@ def plot_qualitative_results(img_crop, GT_mask, prob_map, computed_mask, title, 
     plt.close(fig)
 
 
-def plot_bar_comparison(mean_ious_border, mean_ious_valid, article_ious, save_path):
-    """
-    Plot a bar chart comparing IoUs per dataset + global for 3 methods
-    """
+def plot_bar_comparison(mean_dice_border, mean_dice_valid, article_dice, save_path):
+    # mean_dice_border contient déjà la valeur globale en dernier
+    n_with_global = len(mean_dice_border)
+    n = n_with_global - 1  # nombre de datasets
 
-    # Nombre de datasets
-    n = len(mean_ious_border)
-
-    # Labels avec Global
-    labels = [f"D{i+1}" for i in range(n)]
+    labels = [f"D{i+1}" for i in range(n)]  # D1..Dn
     labels.append("Global")
-
-    # Ajouter la moyenne globale à la fin
-    mean_ious_border_ext = mean_ious_border + [np.mean(mean_ious_border)]
-    mean_ious_valid_ext = mean_ious_valid + [np.mean(mean_ious_valid)]
-    article_ious_ext = article_ious[:n] + [np.mean(article_ious[:n])]
 
     x = np.arange(len(labels))
     width = 0.25
 
     fig, ax = plt.subplots(figsize=(12, 6))
 
-    bars1 = ax.bar(x - width, article_ious_ext, width, label="Référence (Article)", color="#2E2836")
-    bars2 = ax.bar(x, mean_ious_border_ext, width, label="Ré-implémentation", color="#6A8CAF")
-    bars3 = ax.bar(x + width, mean_ious_valid_ext, width, label="Méthode améliorée", color="#ACBED8")
+    # article_dice contient aussi le global en dernier (selon ton appel)
+    bars1 = ax.bar(x - width, article_dice[:n_with_global], width,
+                   label="Référence (Article)", color="#2E2836")
+    bars2 = ax.bar(x, mean_dice_border, width,
+                   label="Ré-implémentation", color="#6A8CAF")
+    bars3 = ax.bar(x + width, mean_dice_valid, width,
+                   label="Méthode améliorée", color="#ACBED8")
+    ...
     
     # Labels au-dessus des barres
     for bars in [bars1, bars2, bars3]:
@@ -88,8 +84,8 @@ def plot_bar_comparison(mean_ious_border, mean_ious_valid, article_ious, save_pa
             )
 
     ax.set_xlabel("Jeux de données (Datasets)")
-    ax.set_ylabel("IoU moyen")
-    ax.set_title(r"$\bf{Figure\ 10}$ – Comparaison des IoUs moyens")
+    ax.set_ylabel("Dice moyen")
+    ax.set_title(r"$\bf{Figure\ 10}$ – Comparaison des Dice moyens")
     ax.set_xticks(x)
     ax.set_xticklabels(labels)
     ax.legend()
@@ -100,16 +96,16 @@ def plot_bar_comparison(mean_ious_border, mean_ious_valid, article_ious, save_pa
     plt.close(fig)
 
 
-def plot_violin_iou(all_ious, dataset_ids, save_path):
+def plot_violin_dice(all_dice, dataset_ids, save_path):
     """
-    Plot violin plot of IoU distributions per dataset.
+    Plot violin plot of Dice distributions per dataset.
     """
     fig, ax = plt.subplots(figsize=(12,6))
 
-    data = [all_ious[d] for d in sorted(dataset_ids)]
+    data = [all_dice[d] for d in sorted(dataset_ids)]
 
-    # Add global distribution (all IoUs pooled)
-    global_data = [iou for d in dataset_ids for iou in all_ious[d]]
+    # Add global distribution (all Dice pooled)
+    global_data = [dice for d in dataset_ids for dice in all_dice[d]]
     data.append(global_data)
 
     parts = ax.violinplot(data, showmeans=False, showmedians=False, showextrema=False)
@@ -150,8 +146,9 @@ def plot_violin_iou(all_ious, dataset_ids, save_path):
     labels.append("Global")
     ax.set_xticklabels(labels)
     ax.set_xlabel("Jeux de données (Datasets)")
-    ax.set_ylabel("IoU")
-    ax.set_title(r"$\bf{Figure\ 9}$ – Distribution des IoUs par jeu de données")
+    ax.set_ylabel("Dice")
+    ax.set_ylim(0.0, 1.0)
+    ax.set_title(r"$\bf{Figure\ 9}$ – Distribution des Dice par jeu de données")
 
     plt.tight_layout()
     os.makedirs(os.path.dirname(save_path), exist_ok=True)
