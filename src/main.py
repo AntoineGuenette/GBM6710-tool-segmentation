@@ -74,7 +74,7 @@ def main():
         mean_dice = []
 
         # Iterate over all datasets (1 to 10)
-        for i in range(1, 2):
+        for i in range(1, 11):
 
             logger.info(f"-> PROCESSING DATASET {i} <-")
             dice_list_border = []
