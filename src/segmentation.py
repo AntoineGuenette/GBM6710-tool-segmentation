@@ -153,12 +153,12 @@ def color_filtering(img_rgb: np.array) -> np.array:
 
     # Define thresholds to distinguish metallic tools
     # In HSV
-    mask_hue = h > 70 # eliminates red/oranges
-    mask_sat = s < 60 # low saturation
-    mask_val = v > 40 # eliminates dark spots
+    mask_hue = (h >= 20) | (h <= 170)  # eliminates red/oranges
+    mask_sat = s <= 70 # low saturation
+    mask_val = v >= 40 # eliminates dark spots
     # In Opponent Color space
-    mask_o1 = np.abs(O1) < 15
-    mask_o2 = np.abs(O2) < 15
+    mask_o1 = np.abs(O1) < 20
+    mask_o2 = np.abs(O2) < 20
 
     # Combine masks
     mask =  mask_hue & mask_sat & mask_val & mask_o1 & mask_o2
