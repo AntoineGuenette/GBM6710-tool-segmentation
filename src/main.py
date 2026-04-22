@@ -16,7 +16,10 @@ logging.basicConfig(
 
 logger = logging.getLogger(__name__)
 
-def parse_args():
+def parse_args() -> argparse.Namespace:
+    """
+    Parse command-line arguments for the segmentation pipeline.
+    """
     parser = argparse.ArgumentParser(
         description="Segmentation pipeline on EndoVis2017 dataset"
     )
@@ -35,7 +38,10 @@ def parse_args():
     )
     return parser.parse_args()
 
-def main():
+def main() -> None:
+    """
+    Main entry point for the segmentation pipeline: runs segmentation, computes metrics, and generates figures.
+    """
     # Extract arguments
     args = parse_args()
     data_dir = args.data_dir

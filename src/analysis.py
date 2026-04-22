@@ -5,9 +5,9 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-def compute_Dice(computed_mask: np.array, GT_mask: np.array) -> float:
+def compute_Dice(computed_mask: np.ndarray, GT_mask: np.ndarray) -> float:
     """
-    Compute the Dice coefficient (Dice index) between two binary masks.
+    Compute the Dice coefficient between two binary masks.
     """
     TP = np.logical_and(computed_mask == 1, GT_mask == 1).sum()
     FP = np.logical_and(computed_mask == 1, GT_mask == 0).sum()
@@ -24,9 +24,9 @@ def compute_Dice(computed_mask: np.array, GT_mask: np.array) -> float:
     return dice
 
 
-def compute_sensitivity(computed_mask: np.array, GT_mask: np.array) -> float:
+def compute_sensitivity(computed_mask: np.ndarray, GT_mask: np.ndarray) -> float:
     """
-    Compute the sensitivity of the segmentation given two binary masks.
+    Compute the sensitivity (recall) between two binary masks.
     """
     TP = np.logical_and(computed_mask == 1, GT_mask == 1).sum()
     FN = np.logical_and(computed_mask == 0, GT_mask == 1).sum()
@@ -41,9 +41,9 @@ def compute_sensitivity(computed_mask: np.array, GT_mask: np.array) -> float:
     return sensitivity
 
 
-def compute_specificity(computed_mask: np.array, GT_mask: np.array) -> float:
+def compute_specificity(computed_mask: np.ndarray, GT_mask: np.ndarray) -> float:
     """
-    Compute the specificity of the segmentation given two binary masks.
+    Compute the specificity between two binary masks.
     """
     TN = np.logical_and(computed_mask == 0, GT_mask == 0).sum()
     FP = np.logical_and(computed_mask == 1, GT_mask == 0).sum()
@@ -58,9 +58,9 @@ def compute_specificity(computed_mask: np.array, GT_mask: np.array) -> float:
     return specificity
 
 
-def compute_mean_metric(metric_list: list, metric_name: str) -> float:
+def compute_mean_metric(metric_list: list[float], metric_name: str) -> float:
     """
-    Compute the mean metric over a list of values.
+    Compute the mean value of a metric list.
     """
     if len(metric_list) == 0:
         logger.warning(f"{metric_name} list is empty, returning 0.0")
@@ -71,11 +71,14 @@ def compute_mean_metric(metric_list: list, metric_name: str) -> float:
     return mean_metric
 
 
-def save_all_metrics(csv_path: str, all_metric_border: dict, all_metric_valid: dict, metric_name: str):
+def save_all_metrics(
+    csv_path: str,
+    all_metric_border: dict[int, list[float]],
+    all_metric_valid: dict[int, list[float]],
+    metric_name: str
+) -> None:
     """
     Save all metric values per dataset into a CSV file.
-    Each column corresponds to a dataset method.
-    Rows are padded with empty values if datasets have different lengths.
     """
     dataset_ids = sorted(all_metric_border.keys())
     max_len = max(max(len(all_metric_border[d]), len(all_metric_valid[d])) for d in dataset_ids)
@@ -106,10 +109,12 @@ def save_all_metrics(csv_path: str, all_metric_border: dict, all_metric_valid: d
 
     logger.info(f"Saved all {metric_name} to CSV: {csv_path}")
 
-def load_all_metrics(csv_path: str, metric_name: str) -> (dict, dict):
+def load_all_metrics(
+    csv_path: str,
+    metric_name: str
+) -> tuple[dict[int, list[float]], dict[int, list[float]]]:
     """
     Load metric values per dataset from a CSV file.
-    Returns two dicts {dataset_id: [metric]} for border and valid_region.
     """
     all_metric_border = {}
     all_metric_valid = {}

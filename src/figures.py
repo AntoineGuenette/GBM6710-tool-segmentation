@@ -4,7 +4,17 @@ import numpy as np
 
 from segmentation import crop_image
 
-def plot_qualitative_results(img_crop, GT_mask, prob_map, computed_mask, title, save_path):
+def plot_qualitative_results(
+    img_crop: np.ndarray,
+    GT_mask: np.ndarray,
+    prob_map: np.ndarray,
+    computed_mask: np.ndarray,
+    title: str,
+    save_path: str
+) -> None:
+    """
+    Plot qualitative segmentation results (image, GT, probability map, prediction) in a 2x2 grid and save to disk.
+    """
     fig, axes = plt.subplots(2, 2, figsize=(8, 8))
 
     # --- Safety checks for img_crop ---
@@ -50,7 +60,16 @@ def plot_qualitative_results(img_crop, GT_mask, prob_map, computed_mask, title, 
     plt.close(fig)
 
 
-def plot_bar_comparison(mean_metric_border, mean_metric_valid, article_metric, metric_name, save_path):
+def plot_bar_comparison(
+    mean_metric_border: list[float],
+    mean_metric_valid: list[float],
+    article_metric: list[float],
+    metric_name: str,
+    save_path: str
+) -> None:
+    """
+    Plot bar comparison of mean metric values for border and valid methods (and optionally article reference).
+    """
 
     n_with_global = len(mean_metric_border)
     n = n_with_global - 1
@@ -105,9 +124,14 @@ def plot_bar_comparison(mean_metric_border, mean_metric_valid, article_metric, m
     plt.close(fig)
 
 
-def plot_violin(metric_list, metric, dataset_ids, save_path):
+def plot_violin(
+    metric_list: dict[int, list[float]],
+    metric: str,
+    dataset_ids: list[int],
+    save_path: str
+) -> None:
     """
-    Plot violin plot of a metric distributions per dataset.
+    Plot violin and boxplot distributions of a metric per dataset and globally.
     """
     fig, ax = plt.subplots(figsize=(12,6))
 
@@ -165,11 +189,17 @@ def plot_violin(metric_list, metric, dataset_ids, save_path):
     plt.close(fig)
 
 
-def plot_global_qualitative_grid(samples, method, save_path, gt_dir, test_dir, res_dir, metric_name):
+def plot_global_qualitative_grid(
+    samples: dict[str, list[dict]],
+    method: str,
+    save_path: str,
+    gt_dir: str,
+    test_dir: str,
+    res_dir: str,
+    metric_name: str
+) -> None:
     """
-    Create a 3x3 grid:
-    Columns: min / median / max
-    Rows: image / GT / predicted segmentation
+    Create a 3x3 qualitative grid (min, median, max) showing image, GT and prediction for a given method and metric.
     """
     import cv2
 
@@ -236,3 +266,4 @@ def plot_global_qualitative_grid(samples, method, save_path, gt_dir, test_dir, r
     os.makedirs(os.path.dirname(save_path), exist_ok=True)
     plt.savefig(save_path, dpi=300)
     plt.close(fig)
+    

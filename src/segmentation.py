@@ -133,10 +133,16 @@ def segment_tools(img_path: str, dataset_dir: str=None, save_subdir: str=None, d
 
     return final_mask, prob_map, img_crop
 
-def crop_image(img: np.array, crop_pix_x: int, crop_pix_y: int, width: int, height: int) -> np.array:
+def crop_image(img: np.ndarray, crop_pix_x: int, crop_pix_y: int, width: int, height: int) -> np.ndarray:
+    """
+    Crop an image using top-left corner and dimensions.
+    """
     return img[crop_pix_y:crop_pix_y+height, crop_pix_x:crop_pix_x+width]
 
-def color_filtering(img_rgb: np.array) -> np.array:
+def color_filtering(img_rgb: np.ndarray) -> np.ndarray:
+    """
+    Generate a binary mask using HSV and opponent color filtering to detect metallic tools.
+    """
     # Convert RGB image to HSV
     img_hsv = cv2.cvtColor(img_rgb, cv2.COLOR_BGR2HSV)
     h = img_hsv[:,:,0] # possible values : 0-179
@@ -171,7 +177,10 @@ def color_filtering(img_rgb: np.array) -> np.array:
 
     return mask
 
-def run_grabcut(img_rgb: np.array, init_mask: np.array, iterations: int = 5) -> np.array:
+def run_grabcut(img_rgb: np.ndarray, init_mask: np.ndarray, iterations: int = 5) -> np.ndarray:
+    """
+    Apply GrabCut segmentation initialized from a mask and return a refined binary mask.
+    """
     # Prepare GrabCut mask
     grabcut_mask = np.where(init_mask > 0, cv2.GC_PR_FGD, cv2.GC_BGD).astype('uint8')
 
@@ -191,7 +200,10 @@ def run_grabcut(img_rgb: np.array, init_mask: np.array, iterations: int = 5) -> 
 
     return grabcut_result
 
-def extract_edges(img_rgb):
+def extract_edges(img_rgb: np.ndarray) -> np.ndarray:
+    """
+    Extract edge features using Canny edge detection.
+    """
     # Convert to grayscale
     img_gray = cv2.cvtColor(img_rgb, cv2.COLOR_RGB2GRAY)
 
@@ -200,7 +212,10 @@ def extract_edges(img_rgb):
 
     return edge_mask
 
-def extract_elongated_shapes(mask):
+def extract_elongated_shapes(mask: np.ndarray) -> np.ndarray:
+    """
+    Extract elongated connected components from a binary mask.
+    """
     # Label all separate regions
     num_labels, labels, stats, _ = cv2.connectedComponentsWithStats(mask)
 
@@ -219,7 +234,10 @@ def extract_elongated_shapes(mask):
 
     return shape_mask
 
-def extract_big_regions(mask, min_size: int = 1000):
+def extract_big_regions(mask: np.ndarray, min_size: int = 1000) -> np.ndarray:
+    """
+    Keep only connected components larger than a given size.
+    """
     # Label connected components
     num_labels, labels, stats, _ = cv2.connectedComponentsWithStats(mask)
 
@@ -235,7 +253,10 @@ def extract_big_regions(mask, min_size: int = 1000):
 
     return big_regions_mask
 
-def extract_border_regions(mask):
+def extract_border_regions(mask: np.ndarray) -> np.ndarray:
+    """
+    Extract connected components that touch the image border.
+    """
     # Label all separate regions
     num_labels, labels, stats, _ = cv2.connectedComponentsWithStats(mask)
 
@@ -262,7 +283,10 @@ def extract_border_regions(mask):
 
     return border_feature
 
-def compute_blur_score(img_rgb):
+def compute_blur_score(img_rgb: np.ndarray) -> float:
+    """
+    Compute a blur score based on the variance of the Laplacian.
+    """
     # Convert to gray scale
     img_gray = cv2.cvtColor(img_rgb, cv2.COLOR_RGB2GRAY)
 
@@ -273,17 +297,18 @@ def compute_blur_score(img_rgb):
     blur_score = laplacian.var()
     return blur_score
 
-def blur_factor(blur_score, min_blur=50, max_blur=150):
+def blur_factor(blur_score: float, min_blur: float = 50, max_blur: float = 150) -> float:
     """
-    Normalize blur score to a factor between 0 and 1.
-    0 -> very blurry image
-    1 -> sharp image
+    Normalize a blur score to a factor between 0 and 1.
     """
     factor = (blur_score - min_blur) / (max_blur - min_blur)
     factor = np.clip(factor, 0.0, 1.0)
     return factor
 
-def compute_dynamic_weights(bf):
+def compute_dynamic_weights(bf: float) -> tuple[float, float, float, float]:
+    """
+    Compute normalized weights for different feature maps based on blur factor.
+    """
     w_color = 0.25
     w_grabcut = 0.3
     w_shape = 0.3
