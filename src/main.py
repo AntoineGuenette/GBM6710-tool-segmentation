@@ -55,9 +55,19 @@ def main():
     GT_dir = os.path.join(data_dir, 'ground_truth')
     test_set_dir = os.path.join(data_dir, 'test_set')
     res_dir = os.path.join(data_dir, '..', 'res')
-    mean_dice_csv_path = os.path.join(res_dir, "mean_dice.csv")
-    all_dice_csv_path_border = os.path.join(res_dir, "all_dice_border.csv")
-    all_dice_csv_path_valid = os.path.join(res_dir, "all_dice_valid.csv")
+    csv_dir = os.path.join(res_dir, 'CSVs')
+    figs_dir = os.path.join(res_dir, 'figs')
+
+    os.makedirs(csv_dir, exist_ok=True)
+    os.makedirs(figs_dir, exist_ok=True)
+
+    mean_dice_csv_path = os.path.join(csv_dir, "mean_dice.csv")
+    all_dice_csv_path_border = os.path.join(csv_dir, "all_dice_border.csv")
+    all_dice_csv_path_valid = os.path.join(csv_dir, "all_dice_valid.csv")
+
+    bar_plot_path = os.path.join(figs_dir, "mean_dice_comparison.png")
+    violin_plot_path_border = os.path.join(figs_dir, "dice_violin_border.png")
+    violin_plot_path_valid = os.path.join(figs_dir, "dice_violin_valid_region.png")
 
     if args.skip_analysis:
         # For skip-analysis, load both border and valid csvs
@@ -393,18 +403,13 @@ def main():
     # Bar comparison with three methods
     mean_dice_border = [m["border"] for m in mean_dice]
     mean_dice_valid = [m["valid_region"] for m in mean_dice]
-    bar_plot_path = os.path.join(res_dir, "mean_dice_comparison.png")
     plot_bar_comparison(
         mean_dice_border + [global_mean_dice_border],
         mean_dice_valid + [global_mean_dice_valid],
         article_dice[:len(mean_dice)] + [article_mean_dice],
         bar_plot_path
     )
-
-    # Violin plots for both methods
-    violin_plot_path_border = os.path.join(res_dir, "dice_violin_border.png")
-    violin_plot_path_valid = os.path.join(res_dir, "dice_violin_valid_region.png")
-
+    
     # Prepare Dice data for border and valid_region
     dice_border_dict = {d: all_dice_per_dataset[d]["border"] for d in dataset_ids}
     dice_valid_dict = {d: all_dice_per_dataset[d]["valid_region"] for d in dataset_ids}
