@@ -8,7 +8,6 @@ logger = logging.getLogger(__name__)
 def compute_Dice(computed_mask: np.array, GT_mask: np.array) -> float:
     """
     Compute the Dice coefficient (Dice index) between two binary masks.
-    Returns 1.0 if both masks are all empty.
     """
     TP = np.logical_and(computed_mask == 1, GT_mask == 1).sum()
     FP = np.logical_and(computed_mask == 1, GT_mask == 0).sum()
@@ -16,28 +15,60 @@ def compute_Dice(computed_mask: np.array, GT_mask: np.array) -> float:
 
     denom = TP + FP + FN
 
-    # Fix IoU=1 if both masks are all empty
     if denom == 0:
         return 1.0
 
     iou = TP / (TP + FP + FN)
     dice = (2 * iou) / (1 + iou)
-    logger.debug(f"Dice computed: Dice={dice:.4f}")
+    logger.debug(f"Dice computed: {dice:.4f}")
     return dice
 
 
-def compute_mean_Dice(dice_list: list) -> float:
+def compute_sensitivity(computed_mask: np.array, GT_mask: np.array) -> float:
     """
-    Compute the mean Dice index over a list of Dice values.
-    Returns 0.0 if the list is empty.
+    Compute the sensitivity of the segmentation given two binary masks.
     """
-    if len(dice_list) == 0:
-        logger.warning("Dice list is empty, returning 0.0")
-        return 0.0
+    TP = np.logical_and(computed_mask == 1, GT_mask == 1).sum()
+    FN = np.logical_and(computed_mask == 0, GT_mask == 1).sum()
+
+    denom = TP + FN
+
+    if denom == 0:
+        return 1.0
+
+    sensitivity = TP / (TP + FN)
+    logger.debug(f"Sensitivity computed: {sensitivity:.4f}")
+    return sensitivity
+
+
+def compute_specificity(computed_mask: np.array, GT_mask: np.array) -> float:
+    """
+    Compute the specificity of the segmentation given two binary masks.
+    """
+    TN = np.logical_and(computed_mask == 0, GT_mask == 0).sum()
+    FP = np.logical_and(computed_mask == 1, GT_mask == 0).sum()
+
+    denom = TN + FP
+
+    if denom == 0:
+        return 1.0
+
+    specificity = TN / (TN + FP)
+    logger.debug(f"Specificity computed: {specificity:.4f}")
+    return specificity
+
+
+def compute_mean_metric(metric_list: list, metric: str) -> float:
+    """
+    Compute the mean metric over a list of values.
+    """
+    if len(metric_list) == 0:
+        logger.warning(f"{metric} list is empty, returning 0.0")
+        return np.nan
     
-    mean_dice = float(np.mean(dice_list))
-    logger.debug(f"Mean Dice computed: {mean_dice:.4f} over {len(dice_list)} samples")
-    return mean_dice
+    mean_metric = float(np.mean(metric_list))
+    logger.debug(f"Mean {metric} computed: {mean_metric:.4f} over {len(metric_list)} samples")
+    return mean_metric
 
 
 def append_dataset_result(csv_path: str, dataset_id: int, mean_dice_border: float, mean_dice_valid: float):
@@ -57,6 +88,7 @@ def append_dataset_result(csv_path: str, dataset_id: int, mean_dice_border: floa
         writer.writerow([dataset_id, f"{mean_dice_border:.6f}", f"{mean_dice_valid:.6f}"])
 
     logger.info(f"Saved dataset {dataset_id} results to CSV: mean Dice border = {mean_dice_border:.4f}, mean Dice valid region = {mean_dice_valid:.4f}")
+
 
 def append_global_mean(csv_path: str, global_mean_dice_border: float, global_mean_dice_valid: float):
     """
