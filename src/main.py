@@ -6,8 +6,8 @@ import numpy as np
 import shutil
 
 from segmentation import segment_tools, crop_image
-from analysis import compute_Dice, compute_mean_Dice, append_dataset_result, append_global_mean, save_all_dice, load_all_dice
-from figures import plot_qualitative_results, plot_bar_comparison, plot_violin_dice
+from analysis import compute_Dice, compute_sensitivity, compute_specificity, compute_mean_metric, save_all_metrics, load_all_metrics
+from figures import plot_qualitative_results, plot_bar_comparison, plot_violin
 
 logging.basicConfig(
     level=logging.INFO,  # temporary default, will be overridden
@@ -61,21 +61,40 @@ def main():
     os.makedirs(csv_dir, exist_ok=True)
     os.makedirs(figs_dir, exist_ok=True)
 
-    mean_dice_csv_path = os.path.join(csv_dir, "mean_dice.csv")
-    all_dice_csv_path_border = os.path.join(csv_dir, "all_dice_border.csv")
-    all_dice_csv_path_valid = os.path.join(csv_dir, "all_dice_valid.csv")
+    mean_metrics_csv_path = os.path.join(csv_dir, "mean_metrics.csv")
 
-    bar_plot_path = os.path.join(figs_dir, "mean_dice_comparison.png")
-    violin_plot_path_border = os.path.join(figs_dir, "dice_violin_border.png")
-    violin_plot_path_valid = os.path.join(figs_dir, "dice_violin_valid_region.png")
+    metrics = ["Dice", "Sensitivity", "Specificity"]
 
     if args.skip_analysis:
-        # For skip-analysis, load both border and valid csvs
-        all_dice_border, all_dice_valid = load_all_dice(all_dice_csv_path_border)
-        all_dice_per_dataset = {d: {"border": all_dice_border[d], "valid_region": all_dice_valid[d]} for d in all_dice_border}
-        dataset_ids = list(all_dice_per_dataset.keys())
-        mean_dice = [{"border": compute_mean_Dice(all_dice_per_dataset[d]["border"]),
-                      "valid_region": compute_mean_Dice(all_dice_per_dataset[d]["valid_region"])} for d in dataset_ids]
+        # For skip-analysis, load all metrics for each metric from their CSVs
+        all_metrics_border = {}
+        all_metrics_valid = {}
+
+        for m in metrics:
+            csv_path = os.path.join(csv_dir, f"all_metrics_{m.lower()}.csv")
+            border_dict, valid_dict = load_all_metrics(csv_path, m)
+            all_metrics_border[m] = border_dict
+            all_metrics_valid[m] = valid_dict
+
+        all_dice_per_dataset = {}
+        dataset_ids = list(next(iter(all_metrics_border.values())).keys())
+
+        for d in dataset_ids:
+            metric_lists_border = {m: all_metrics_border[m][d] for m in metrics}
+            metric_lists_valid = {m: all_metrics_valid[m][d] for m in metrics}
+
+            all_dice_per_dataset[d] = {
+                "border": metric_lists_border,
+                "valid_region": metric_lists_valid
+            }
+        mean_dice = []
+        for d in dataset_ids:
+            mean_metrics_border = {m: compute_mean_metric(all_dice_per_dataset[d]["border"][m], m) for m in metrics}
+            mean_metrics_valid = {m: compute_mean_metric(all_dice_per_dataset[d]["valid_region"][m], m) for m in metrics}
+            mean_dice.append({
+                "border": mean_metrics_border,
+                "valid_region": mean_metrics_valid
+            })
     else:
         # Store global Dice results for best/worst/median selection
         all_results = []
@@ -87,8 +106,8 @@ def main():
         for i in range(1, 11):
 
             logger.info(f"-> PROCESSING DATASET {i} <-")
-            dice_list_border = []
-            dice_list_valid = []
+            metric_lists_border = {m: [] for m in metrics}
+            metric_lists_valid = {m: [] for m in metrics}
 
             # Define dataset-specific paths
             GT_frames_dir = os.path.join(GT_dir, f'instrument_dataset_{i}', 'BinarySegmentation')
@@ -151,14 +170,24 @@ def main():
                     gt_mask = (gt_mask > 0).astype(np.uint8)
 
                     dice_valid = compute_Dice(pred_mask_valid, gt_mask)
-                    dice_list_valid.append(dice_valid)
+                    sens_valid = compute_sensitivity(pred_mask_valid, gt_mask)
+                    spec_valid = compute_specificity(pred_mask_valid, gt_mask)
+
+                    metric_lists_valid["Dice"].append(dice_valid)
+                    metric_lists_valid["Sensitivity"].append(sens_valid)
+                    metric_lists_valid["Specificity"].append(spec_valid)
 
                     # Load BORDER mask
                     pred_mask_border = cv2.imread(mask_path_border, cv2.IMREAD_GRAYSCALE)
                     pred_mask_border = (pred_mask_border > 0).astype(np.uint8)
 
                     dice_border = compute_Dice(pred_mask_border, gt_mask)
-                    dice_list_border.append(dice_border)
+                    sens_border = compute_sensitivity(pred_mask_border, gt_mask)
+                    spec_border = compute_specificity(pred_mask_border, gt_mask)
+
+                    metric_lists_border["Dice"].append(dice_border)
+                    metric_lists_border["Sensitivity"].append(sens_border)
+                    metric_lists_border["Specificity"].append(spec_border)
 
                     prob_map_path = os.path.join(dataset_dir, 'prob_maps', 'prob_' + filename)
 
@@ -199,16 +228,26 @@ def main():
                         GT_mask_bin = None
 
                     if computed_mask_bin_border is not None and GT_mask_bin is not None:
-                        # Compute Dice border
+                        # Compute Dice, Sensitivity, Specificity for border
                         dice_border = compute_Dice(computed_mask_bin_border, GT_mask_bin)
-                        dice_list_border.append(dice_border)
+                        sens_border = compute_sensitivity(computed_mask_bin_border, GT_mask_bin)
+                        spec_border = compute_specificity(computed_mask_bin_border, GT_mask_bin)
+
+                        metric_lists_border["Dice"].append(dice_border)
+                        metric_lists_border["Sensitivity"].append(sens_border)
+                        metric_lists_border["Specificity"].append(spec_border)
                     else:
                         dice_border = None
 
                     if computed_mask_bin_valid is not None and GT_mask_bin is not None:
-                        # Compute Dice valid region
+                        # Compute Dice, Sensitivity, Specificity for valid region
                         dice_valid = compute_Dice(computed_mask_bin_valid, GT_mask_bin)
-                        dice_list_valid.append(dice_valid)
+                        sens_valid = compute_sensitivity(computed_mask_bin_valid, GT_mask_bin)
+                        spec_valid = compute_specificity(computed_mask_bin_valid, GT_mask_bin)
+
+                        metric_lists_valid["Dice"].append(dice_valid)
+                        metric_lists_valid["Sensitivity"].append(sens_valid)
+                        metric_lists_valid["Specificity"].append(spec_valid)
                     else:
                         dice_valid = None
 
@@ -245,54 +284,80 @@ def main():
                         save_path=qual_res_file_path_border
                     )
 
-            # Compute mean Dice for both methods
-            mean_dice_border = compute_mean_Dice(dice_list_border)
-            mean_dice_valid = compute_mean_Dice(dice_list_valid)
+            # Compute mean for all metrics for both methods
+            mean_metrics_border = {m: compute_mean_metric(metric_lists_border[m], m) for m in metrics}
+            mean_metrics_valid = {m: compute_mean_metric(metric_lists_valid[m], m) for m in metrics}
             all_dice_per_dataset[i] = {
-                "border": dice_list_border,
-                "valid_region": dice_list_valid
+                "border": metric_lists_border,
+                "valid_region": metric_lists_valid
             }
             mean_dice.append({
-                "border": mean_dice_border,
-                "valid_region": mean_dice_valid
+                "border": mean_metrics_border,
+                "valid_region": mean_metrics_valid
             })
-            logger.info(f"Dataset {i} - Mean Dice Border: {mean_dice_border:.4f} Valid Region: {mean_dice_valid:.4f}")
+            logger.info(f"Dataset {i} - Means (border): {mean_metrics_border} | (valid): {mean_metrics_valid}")
 
-            # Save mean Dice in a CSV file with two columns
-            file_exists = os.path.isfile(mean_dice_csv_path)
-            with open(mean_dice_csv_path, 'a', newline='') as f:
+            # Save mean metrics in a CSV file with all metrics
+            file_exists = os.path.isfile(mean_metrics_csv_path)
+            with open(mean_metrics_csv_path, 'a', newline='') as f:
                 import csv
                 writer = csv.writer(f)
 
                 if not file_exists:
-                    writer.writerow(["dataset_id", "mean_Dice_border", "mean_Dice_valid_region"])
+                    writer.writerow([
+                        "dataset_id",
+                        "Dice_border", "Dice_valid",
+                        "Sensitivity_border", "Sensitivity_valid",
+                        "Specificity_border", "Specificity_valid"
+                    ])
 
-                writer.writerow([i, f"{mean_dice_border:.6f}", f"{mean_dice_valid:.6f}"])
+                writer.writerow([
+                    i,
+                    f"{mean_metrics_border['Dice']:.6f}", f"{mean_metrics_valid['Dice']:.6f}",
+                    f"{mean_metrics_border['Sensitivity']:.6f}", f"{mean_metrics_valid['Sensitivity']:.6f}",
+                    f"{mean_metrics_border['Specificity']:.6f}", f"{mean_metrics_valid['Specificity']:.6f}"
+                ])
 
-        # Save all Dice to CSV
-        # Save separate CSVs for border and valid
-        flattened_dice_border = {}
-        flattened_dice_valid = {}
-        for dataset_id, dice_dict in all_dice_per_dataset.items():
-            flattened_dice_border[dataset_id] = dice_dict["border"]
-            flattened_dice_valid[dataset_id] = dice_dict["valid_region"]
+        # Save all metrics to CSV
+        metrics_border = {m: {} for m in metrics}
+        metrics_valid = {m: {} for m in metrics}
 
-        save_all_dice(all_dice_csv_path_border, flattened_dice_border, {d: [] for d in flattened_dice_border})
-        save_all_dice(all_dice_csv_path_valid, {d: [] for d in flattened_dice_valid}, flattened_dice_valid)
+        for dataset_id, metric_dict in all_dice_per_dataset.items():
+            for m in metrics:
+                metrics_border[m][dataset_id] = metric_dict["border"][m]
+                metrics_valid[m][dataset_id] = metric_dict["valid_region"][m]
+
+        # Save each metric into its own CSV file
+        for m in metrics:
+            csv_path = os.path.join(csv_dir, f"all_metrics_{m.lower()}.csv")
+            save_all_metrics(csv_path, metrics_border[m], metrics_valid[m], m)
 
     dataset_ids = list(all_dice_per_dataset.keys())
 
-    # Compute global mean of means for both methods
-    global_mean_dice_border = float(np.mean([m["border"] for m in mean_dice])) if len(mean_dice) > 0 else 0.0
-    global_mean_dice_valid = float(np.mean([m["valid_region"] for m in mean_dice])) if len(mean_dice) > 0 else 0.0
+    # Compute global mean of means for both methods (Dice only, for CSV and logs)
+    global_mean_dice_border = float(np.mean([m["border"]["Dice"] for m in mean_dice])) if len(mean_dice) > 0 else 0.0
+    global_mean_dice_valid = float(np.mean([m["valid_region"]["Dice"] for m in mean_dice])) if len(mean_dice) > 0 else 0.0
+    global_mean_sens_border = float(np.mean([m["border"]["Sensitivity"] for m in mean_dice])) if len(mean_dice) > 0 else 0.0
+    global_mean_sens_valid = float(np.mean([m["valid_region"]["Sensitivity"] for m in mean_dice])) if len(mean_dice) > 0 else 0.0
+    global_mean_spec_border = float(np.mean([m["border"]["Specificity"] for m in mean_dice])) if len(mean_dice) > 0 else 0.0
+    global_mean_spec_valid = float(np.mean([m["valid_region"]["Specificity"] for m in mean_dice])) if len(mean_dice) > 0 else 0.0
     logger.info(f"Global mean Dice Border (mean of means): {global_mean_dice_border:.4f}")
     logger.info(f"Global mean Dice Valid Region (mean of means): {global_mean_dice_valid:.4f}")
+    logger.info(f"Global mean Sensitivity Border (mean of means): {global_mean_sens_border:.4f}")
+    logger.info(f"Global mean Sensitivity Valid Region (mean of means): {global_mean_sens_valid:.4f}")
+    logger.info(f"Global mean Specificity Border (mean of means): {global_mean_spec_border:.4f}")
+    logger.info(f"Global mean Specificity Valid Region (mean of means): {global_mean_spec_valid:.4f}")
 
-    # Save to CSV global means
-    with open(mean_dice_csv_path, 'a', newline='') as f:
+    # Save to CSV global means (all metrics, only Dice filled for global_mean row)
+    with open(mean_metrics_csv_path, 'a', newline='') as f:
         import csv
         writer = csv.writer(f)
-        writer.writerow(["global_mean", f"{global_mean_dice_border:.6f}", f"{global_mean_dice_valid:.6f}"])
+        writer.writerow([
+            "global_mean",
+            f"{global_mean_dice_border:.6f}", f"{global_mean_dice_valid:.6f}",
+            f"{global_mean_sens_border:.6f}", f"{global_mean_sens_valid:.6f}",
+            f"{global_mean_spec_border:.6f}", f"{global_mean_spec_valid:.6f}",
+        ])
 
     # Global qualitative selection for BOTH methods (border + valid)
     if len(all_dice_per_dataset) > 0:
@@ -313,12 +378,18 @@ def main():
                 save_dir_method = valid_dir
                 dice_key = "valid_region"
 
-            # Build flat list of results with Dice and metadata
+            # Build flat list of results with Dice and metadata, casting to float and skipping invalid values
             method_results = []
             for d in all_dice_per_dataset:
                 for idx, dice in enumerate(all_dice_per_dataset[d][dice_key]):
+                    if dice is None:
+                        continue
+                    try:
+                        dice_val = float(dice)
+                    except (ValueError, TypeError):
+                        continue
                     method_results.append({
-                        "dice": dice,
+                        "dice": dice_val,
                         "dataset_id": d,
                         "index": idx
                     })
@@ -386,12 +457,6 @@ def main():
 
     # Quantitative plots
 
-    if args.skip_analysis:
-        if not os.path.exists(all_dice_csv_path_border) or not os.path.exists(all_dice_csv_path_valid):
-            raise FileNotFoundError(
-                "Dice CSV files not found. Run without --skip-analysis first."
-            )
-
     # Article IoU (from provided table)
     article_ious = [0.337, 0.289, 0.483, 0.678, 0.219, 0.619, 0.325, 0.506, 0.377, 0.603]
     article_mean_iou = 0.461
@@ -400,22 +465,25 @@ def main():
     article_dice = [(2 * iou) / (1 + iou) for iou in article_ious]
     article_mean_dice = (2 * article_mean_iou) / (1 + article_mean_iou)
 
-    # Bar comparison with three methods
-    mean_dice_border = [m["border"] for m in mean_dice]
-    mean_dice_valid = [m["valid_region"] for m in mean_dice]
-    plot_bar_comparison(
-        mean_dice_border + [global_mean_dice_border],
-        mean_dice_valid + [global_mean_dice_valid],
-        article_dice[:len(mean_dice)] + [article_mean_dice],
-        bar_plot_path
-    )
-    
-    # Prepare Dice data for border and valid_region
-    dice_border_dict = {d: all_dice_per_dataset[d]["border"] for d in dataset_ids}
-    dice_valid_dict = {d: all_dice_per_dataset[d]["valid_region"] for d in dataset_ids}
+    # Bar comparison and violin plots for all metrics
+    for metric in metrics:
+        mean_metric_border = [m["border"][metric] for m in mean_dice]
+        mean_metric_valid = [m["valid_region"][metric] for m in mean_dice]
 
-    plot_violin_dice(dice_border_dict, dataset_ids, violin_plot_path_border)
-    plot_violin_dice(dice_valid_dict, dataset_ids, violin_plot_path_valid)
+        plot_bar_comparison(
+            mean_metric_border + [np.mean(mean_metric_border)],
+            mean_metric_valid + [np.mean(mean_metric_valid)],
+            article_dice[:len(mean_dice)] + [article_mean_dice] if metric == "Dice" else [0]*(len(mean_metric_border)+1),
+            metric,
+            os.path.join(figs_dir, f"{metric.lower()}_bar.png")
+        )
+
+    for metric in metrics:
+        metric_border_dict = {d: all_dice_per_dataset[d]["border"][metric] for d in dataset_ids}
+        metric_valid_dict = {d: all_dice_per_dataset[d]["valid_region"][metric] for d in dataset_ids}
+
+        plot_violin(metric_border_dict, metric, dataset_ids, os.path.join(figs_dir, f"{metric.lower()}_violin_border.png"))
+        plot_violin(metric_valid_dict, metric, dataset_ids, os.path.join(figs_dir, f"{metric.lower()}_violin_valid.png"))
 
     logger.info("Saved quantitative plots (bar + violin)")
 

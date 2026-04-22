@@ -48,12 +48,12 @@ def plot_qualitative_results(img_crop, GT_mask, prob_map, computed_mask, title, 
     plt.close(fig)
 
 
-def plot_bar_comparison(mean_dice_border, mean_dice_valid, article_dice, save_path):
-    # mean_dice_border contient déjà la valeur globale en dernier
-    n_with_global = len(mean_dice_border)
-    n = n_with_global - 1  # nombre de datasets
+def plot_bar_comparison(mean_metric_border, mean_metric_valid, article_metric, metric_name, save_path):
 
-    labels = [f"D{i+1}" for i in range(n)]  # D1..Dn
+    n_with_global = len(mean_metric_border)
+    n = n_with_global - 1
+
+    labels = [f"D{i+1}" for i in range(n)]
     labels.append("Global")
 
     x = np.arange(len(labels))
@@ -61,17 +61,24 @@ def plot_bar_comparison(mean_dice_border, mean_dice_valid, article_dice, save_pa
 
     fig, ax = plt.subplots(figsize=(12, 6))
 
-    # article_dice contient aussi le global en dernier (selon ton appel)
-    bars1 = ax.bar(x - width, article_dice[:n_with_global], width,
-                   label="Référence (Article)", color="#2E2836")
-    bars2 = ax.bar(x, mean_dice_border, width,
-                   label="Ré-implémentation", color="#6A8CAF")
-    bars3 = ax.bar(x + width, mean_dice_valid, width,
-                   label="Méthode améliorée", color="#ACBED8")
-    ...
-    
-    # Labels au-dessus des barres
-    for bars in [bars1, bars2, bars3]:
+    has_article = any(val != 0 for val in article_metric)
+
+    if has_article:
+        bars1 = ax.bar(x - width, article_metric[:n_with_global], width,
+                       label="Référence (Article)", color="#2E2836")
+        bars2 = ax.bar(x, mean_metric_border, width,
+                       label="Ré-implémentation", color="#6A8CAF")
+        bars3 = ax.bar(x + width, mean_metric_valid, width,
+                       label="Méthode améliorée", color="#ACBED8")
+        bar_groups = [bars1, bars2, bars3]
+    else:
+        bars2 = ax.bar(x - width/2, mean_metric_border, width,
+                       label="Ré-implémentation", color="#6A8CAF")
+        bars3 = ax.bar(x + width/2, mean_metric_valid, width,
+                       label="Méthode améliorée", color="#ACBED8")
+        bar_groups = [bars2, bars3]
+
+    for bars in bar_groups:
         for bar in bars:
             height = bar.get_height()
             ax.text(
@@ -84,8 +91,8 @@ def plot_bar_comparison(mean_dice_border, mean_dice_valid, article_dice, save_pa
             )
 
     ax.set_xlabel("Jeux de données (Datasets)")
-    ax.set_ylabel("Dice moyen")
-    ax.set_title(r"$\bf{Figure\ 10}$ – Comparaison des Dice moyens")
+    ax.set_ylabel(f"{metric_name} moyen")
+    ax.set_title(f"Comparaison du {metric_name}")
     ax.set_xticks(x)
     ax.set_xticklabels(labels)
     ax.legend()
@@ -96,16 +103,16 @@ def plot_bar_comparison(mean_dice_border, mean_dice_valid, article_dice, save_pa
     plt.close(fig)
 
 
-def plot_violin_dice(all_dice, dataset_ids, save_path):
+def plot_violin(metric_list, metric, dataset_ids, save_path):
     """
-    Plot violin plot of Dice distributions per dataset.
+    Plot violin plot of a metric distributions per dataset.
     """
     fig, ax = plt.subplots(figsize=(12,6))
 
-    data = [all_dice[d] for d in sorted(dataset_ids)]
+    data = [metric_list[d] for d in sorted(dataset_ids)]
 
-    # Add global distribution (all Dice pooled)
-    global_data = [dice for d in dataset_ids for dice in all_dice[d]]
+    # Add global distribution
+    global_data = [met for d in dataset_ids for met in metric_list[d]]
     data.append(global_data)
 
     parts = ax.violinplot(data, showmeans=False, showmedians=False, showextrema=False)
@@ -146,9 +153,9 @@ def plot_violin_dice(all_dice, dataset_ids, save_path):
     labels.append("Global")
     ax.set_xticklabels(labels)
     ax.set_xlabel("Jeux de données (Datasets)")
-    ax.set_ylabel("Dice")
+    ax.set_ylabel(metric)
     ax.set_ylim(0.0, 1.0)
-    ax.set_title(r"$\bf{Figure\ 9}$ – Distribution des Dice par jeu de données")
+    ax.set_title(f"Distribution des {metric} par jeu de données")
 
     plt.tight_layout()
     os.makedirs(os.path.dirname(save_path), exist_ok=True)
