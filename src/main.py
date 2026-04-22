@@ -359,101 +359,77 @@ def main():
             f"{global_mean_spec_border:.6f}", f"{global_mean_spec_valid:.6f}",
         ])
 
-    # Global qualitative selection for BOTH methods (border + valid)
+    # Global qualitative plots (new approach)
     if len(all_dice_per_dataset) > 0:
 
         global_vis_dir = os.path.join(res_dir, "global_qualitative")
-        border_dir = os.path.join(global_vis_dir, "border")
-        valid_dir = os.path.join(global_vis_dir, "valid")
-        os.makedirs(border_dir, exist_ok=True)
-        os.makedirs(valid_dir, exist_ok=True)
+        os.makedirs(global_vis_dir, exist_ok=True)
 
         for method in ["border", "valid_region"]:
 
-            # Select correct directory and Dice key
             if method == "border":
-                save_dir_method = border_dir
                 dice_key = "border"
             else:
-                save_dir_method = valid_dir
                 dice_key = "valid_region"
 
-            # Build flat list of results with Dice and metadata, casting to float and skipping invalid values
-            method_results = []
-            for d in all_dice_per_dataset:
-                for idx, dice in enumerate(all_dice_per_dataset[d][dice_key]):
-                    if dice is None:
-                        continue
-                    try:
-                        dice_val = float(dice)
-                    except (ValueError, TypeError):
-                        continue
-                    method_results.append({
-                        "dice": dice_val,
-                        "dataset_id": d,
-                        "index": idx
-                    })
+            for metric_name in metrics:
 
-            if len(method_results) == 0:
-                continue
+                method_results = []
+                for d in all_dice_per_dataset:
+                    for idx, val in enumerate(all_dice_per_dataset[d][dice_key][metric_name]):
+                        if val is None:
+                            continue
+                        try:
+                            metric_val = float(val)
+                        except (ValueError, TypeError):
+                            continue
+                        method_results.append({
+                            "metric": metric_val,
+                            "dataset_id": d,
+                            "index": idx
+                        })
 
-            # Sort by Dice
-            method_results_sorted = sorted(method_results, key=lambda x: x["dice"])
-            n = len(method_results_sorted)
+                if len(method_results) == 0:
+                    continue
 
-            # Exclude Dice == 0 for minimum samples
-            non_zero_results = [r for r in method_results_sorted if r["dice"] > 0]
+                method_results_sorted = sorted(method_results, key=lambda x: x["metric"])
+                n = len(method_results_sorted)
 
-            if len(non_zero_results) >= 3:
-                min_samples = non_zero_results[:3]
-            else:
-                min_samples = non_zero_results
+                non_zero_results = [r for r in method_results_sorted if r["metric"] > 0]
 
-            max_samples = method_results_sorted[-3:]
+                # Select a single minimum (avoid zero if possible)
+                if len(non_zero_results) > 0:
+                    min_sample = non_zero_results[0]
+                else:
+                    min_sample = method_results_sorted[0]
 
-            median_start = max(0, n // 2 - 1)
-            median_samples = method_results_sorted[median_start:median_start + 3]
+                # Select a single maximum
+                max_sample = method_results_sorted[-1]
 
-            selected_groups = {
-                "minimum": min_samples,
-                "mediane": median_samples,
-                "maximum": max_samples
-            }
+                # Select a single median
+                median_idx = n // 2
+                median_sample = method_results_sorted[median_idx]
 
-            # Loop and copy images
-            for key, samples in selected_groups.items():
-                for idx, sample in enumerate(samples):
+                selected_groups = {
+                    "minimum": [min_sample],
+                    "mediane": [median_sample],
+                    "maximum": [max_sample]
+                }
 
-                    dataset_id = sample["dataset_id"]
-                    frame_idx = sample["index"]
+                save_path = os.path.join(global_vis_dir, f"{method}_{metric_name.lower()}_global_grid.png")
 
-                    dataset_dir = os.path.join(res_dir, f'instrument_dataset_{dataset_id}')
+                from figures import plot_global_qualitative_grid
+                plot_global_qualitative_grid(
+                    selected_groups,
+                    method,
+                    save_path,
+                    GT_dir,
+                    test_set_dir,
+                    res_dir,
+                    metric_name
+                )
 
-                    # Reconstruct filename from index ordering
-                    frames_dir = os.path.join(test_set_dir, f'instrument_dataset_{dataset_id}', 'left_frames')
-                    filenames = sorted([f for f in os.listdir(frames_dir) if f.endswith(".png") and not f.startswith("._")])
-
-                    if frame_idx >= len(filenames):
-                        continue
-
-                    filename = filenames[frame_idx]
-
-                    qual_filename = 'QualRes_' + filename
-
-                    if method == "border":
-                        src_path = os.path.join(dataset_dir, 'border', 'qualitative_results', qual_filename)
-                    else:
-                        src_path = os.path.join(dataset_dir, 'valid', 'qualitative_results', qual_filename)
-
-                    if not os.path.exists(src_path):
-                        continue
-
-                    new_name = f"{key}_Dice_{sample['dice']:.4f}_dataset{dataset_id}_{filename.replace('.png','')}.png"
-                    dst_path = os.path.join(save_dir_method, new_name)
-
-                    shutil.copy(src_path, dst_path)
-
-        logger.info("Saved global qualitative samples for both methods (border & valid)")
+        logger.info("Saved global qualitative grids")
 
     # Quantitative plots
 

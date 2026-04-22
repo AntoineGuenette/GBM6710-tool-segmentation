@@ -2,6 +2,8 @@ import os
 import matplotlib.pyplot as plt
 import numpy as np
 
+from segmentation import crop_image
+
 def plot_qualitative_results(img_crop, GT_mask, prob_map, computed_mask, title, save_path):
     fig, axes = plt.subplots(2, 2, figsize=(8, 8))
 
@@ -156,6 +158,79 @@ def plot_violin(metric_list, metric, dataset_ids, save_path):
     ax.set_ylabel(metric)
     ax.set_ylim(0.0, 1.0)
     ax.set_title(f"Distribution des {metric} par jeu de données")
+
+    plt.tight_layout()
+    os.makedirs(os.path.dirname(save_path), exist_ok=True)
+    plt.savefig(save_path, dpi=300)
+    plt.close(fig)
+
+
+def plot_global_qualitative_grid(samples, method, save_path, gt_dir, test_dir, res_dir, metric_name):
+    """
+    Create a 3x3 grid:
+    Columns: min / median / max
+    Rows: image / GT / predicted segmentation
+    """
+    import cv2
+
+    fig, axes = plt.subplots(3, 3, figsize=(12, 10))
+
+    titles = ["Minimum", "Médiane", "Maximum"]
+
+    for col, (key, sample_list) in enumerate(samples.items()):
+        if len(sample_list) == 0:
+            continue
+
+        sample = sample_list[0]  # take representative
+
+        dataset_id = sample["dataset_id"]
+        frame_idx = sample["index"]
+
+        frames_dir = os.path.join(test_dir, f'instrument_dataset_{dataset_id}', 'left_frames')
+        filenames = sorted([f for f in os.listdir(frames_dir) if f.endswith(".png") and not f.startswith("._")])
+
+        if frame_idx >= len(filenames):
+            continue
+
+        filename = filenames[frame_idx]
+
+        # Load image
+        frame_path = os.path.join(frames_dir, filename)
+        img = cv2.imread(frame_path)
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        img = crop_image(img, 328, 37, 1264, 1010)
+
+        # Load GT
+        gt_path = os.path.join(gt_dir, f'instrument_dataset_{dataset_id}', 'BinarySegmentation', filename)
+        gt = cv2.imread(gt_path)
+        gt = crop_image(gt, 328, 37, 1264, 1010)
+
+        # Load prediction
+        if method == "border":
+            pred_path = os.path.join(res_dir, f'instrument_dataset_{dataset_id}', 'border', 'binary_segmentations', 'bin_' + filename)
+        else:
+            pred_path = os.path.join(res_dir, f'instrument_dataset_{dataset_id}', 'valid', 'binary_segmentations', 'bin_' + filename)
+
+        pred = cv2.imread(pred_path, cv2.IMREAD_GRAYSCALE)
+
+        axes[0, col].imshow(img)
+        axes[1, col].imshow(gt, cmap="gray")
+        axes[2, col].imshow(pred, cmap="gray")
+
+        metric_val = sample.get("metric", None)
+        if metric_val is not None:
+            title_str = f"{titles[col]}\nD{dataset_id} - Frame {filename}\n{metric_name}: {metric_val:.4f}"
+        else:
+            title_str = f"{titles[col]}\nD{dataset_id} - Frame {filename}"
+
+        axes[0, col].set_title(title_str)
+
+        for row in range(3):
+            axes[row, col].axis("off")
+
+    row_labels = ["Image", "GT", "Segmentation"]
+    for row in range(3):
+        axes[row, 0].set_ylabel(row_labels[row])
 
     plt.tight_layout()
     os.makedirs(os.path.dirname(save_path), exist_ok=True)
