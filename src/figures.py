@@ -17,7 +17,7 @@ def plot_qualitative_results(
     """
     fig, axes = plt.subplots(2, 2, figsize=(8, 8))
 
-    # --- Safety checks for img_crop ---
+    # Check image validity
     if img_crop is None:
         raise ValueError("img_crop is None (image not loaded or skipped improperly)")
 
@@ -59,7 +59,6 @@ def plot_qualitative_results(
     plt.savefig(save_path, dpi=300)
     plt.close(fig)
 
-
 def plot_bar_comparison(
     mean_metric_border: list[float],
     mean_metric_valid: list[float],
@@ -86,19 +85,20 @@ def plot_bar_comparison(
 
     if has_article:
         bars1 = ax.bar(x - width, article_metric[:n_with_global], width,
-                       label="Référence (Article)", color="#2E2836")
+        label="Référence (Article)", color="#2E2836")
         bars2 = ax.bar(x, mean_metric_border, width,
-                       label="Ré-implémentation", color="#6A8CAF")
+        label="Ré-implémentation", color="#6A8CAF")
         bars3 = ax.bar(x + width, mean_metric_valid, width,
-                       label="Méthode améliorée", color="#ACBED8")
+        label="Méthode améliorée", color="#ACBED8")
         bar_groups = [bars1, bars2, bars3]
     else:
         bars2 = ax.bar(x - width/2, mean_metric_border, width,
-                       label="Ré-implémentation", color="#6A8CAF")
+        label="Ré-implémentation", color="#6A8CAF")
         bars3 = ax.bar(x + width/2, mean_metric_valid, width,
-                       label="Méthode améliorée", color="#ACBED8")
+        label="Méthode améliorée", color="#ACBED8")
         bar_groups = [bars2, bars3]
 
+    # Annotate bar values
     for bars in bar_groups:
         for bar in bars:
             height = bar.get_height()
@@ -123,7 +123,6 @@ def plot_bar_comparison(
     plt.savefig(save_path, dpi=300)
     plt.close(fig)
 
-
 def plot_violin(
     metric_list: dict[int, list[float]],
     metric: str,
@@ -143,13 +142,13 @@ def plot_violin(
 
     parts = ax.violinplot(data, showmeans=False, showmedians=False, showextrema=False)
 
-    # Set colors manually
+    # Set violin colors
     for pc in parts['bodies']:
         pc.set_facecolor("#ACBED8")
         pc.set_edgecolor("none")
         pc.set_alpha(0.8)
 
-    # Remove default violin lines to avoid overlap with boxplot
+    # Remove default violin lines
     for key in ['cbars', 'cmins', 'cmaxes']:
         if key in parts:
             parts[key].set_visible(False)
@@ -188,7 +187,6 @@ def plot_violin(
     plt.savefig(save_path, dpi=300)
     plt.close(fig)
 
-
 def plot_global_qualitative_grid(
     samples: dict[str, list[dict]],
     method: str,
@@ -211,7 +209,7 @@ def plot_global_qualitative_grid(
         if len(sample_list) == 0:
             continue
 
-        sample = sample_list[0]  # take representative
+        sample = sample_list[0]  # Take representative sample
 
         dataset_id = sample["dataset_id"]
         frame_idx = sample["index"]
@@ -222,7 +220,10 @@ def plot_global_qualitative_grid(
         if frame_idx >= len(filenames):
             continue
 
+        # Extract file name and frame number
         filename = filenames[frame_idx]
+        frame_stem = os.path.splitext(filename)[0]
+        frame_number = int(frame_stem.replace("frame", ""))
 
         # Load image
         frame_path = os.path.join(frames_dir, filename)
@@ -230,12 +231,12 @@ def plot_global_qualitative_grid(
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         img = crop_image(img, 328, 37, 1264, 1010)
 
-        # Load GT
+        # Load GT mask
         gt_path = os.path.join(gt_dir, f'instrument_dataset_{dataset_id}', 'BinarySegmentation', filename)
         gt = cv2.imread(gt_path)
         gt = crop_image(gt, 328, 37, 1264, 1010)
 
-        # Load prediction
+        # Load predicted mask
         if method == "border":
             pred_path = os.path.join(res_dir, f'instrument_dataset_{dataset_id}', 'border', 'binary_segmentations', 'bin_' + filename)
         else:
@@ -249,15 +250,17 @@ def plot_global_qualitative_grid(
 
         metric_val = sample.get("metric", None)
         if metric_val is not None:
-            title_str = f"{titles[col]}\nD{dataset_id} - Frame {filename}\n{metric_name}: {metric_val:.4f}"
+            title_str = f"{titles[col]}\nD{dataset_id} - Frame {frame_number}\n{metric_name}: {metric_val:.4f}"
         else:
-            title_str = f"{titles[col]}\nD{dataset_id} - Frame {filename}"
+            title_str = f"{titles[col]}\nD{dataset_id} - Frame {frame_number}"
 
         axes[0, col].set_title(title_str)
 
+        # Hide subplot axes
         for row in range(3):
             axes[row, col].axis("off")
 
+    # Set row labels
     row_labels = ["Image", "GT", "Segmentation"]
     for row in range(3):
         axes[row, 0].set_ylabel(row_labels[row])
@@ -266,4 +269,3 @@ def plot_global_qualitative_grid(
     os.makedirs(os.path.dirname(save_path), exist_ok=True)
     plt.savefig(save_path, dpi=300)
     plt.close(fig)
-    

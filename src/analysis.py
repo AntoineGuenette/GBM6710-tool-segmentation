@@ -23,7 +23,6 @@ def compute_Dice(computed_mask: np.ndarray, GT_mask: np.ndarray) -> float:
     logger.debug(f"Dice computed: {dice:.4f}")
     return dice
 
-
 def compute_sensitivity(computed_mask: np.ndarray, GT_mask: np.ndarray) -> float:
     """
     Compute the sensitivity (recall) between two binary masks.
@@ -39,7 +38,6 @@ def compute_sensitivity(computed_mask: np.ndarray, GT_mask: np.ndarray) -> float
     sensitivity = TP / (TP + FN)
     logger.debug(f"Sensitivity computed: {sensitivity:.4f}")
     return sensitivity
-
 
 def compute_specificity(computed_mask: np.ndarray, GT_mask: np.ndarray) -> float:
     """
@@ -57,7 +55,6 @@ def compute_specificity(computed_mask: np.ndarray, GT_mask: np.ndarray) -> float
     logger.debug(f"Specificity computed: {specificity:.4f}")
     return specificity
 
-
 def compute_mean_metric(metric_list: list[float], metric_name: str) -> float:
     """
     Compute the mean value of a metric list.
@@ -65,11 +62,10 @@ def compute_mean_metric(metric_list: list[float], metric_name: str) -> float:
     if len(metric_list) == 0:
         logger.warning(f"{metric_name} list is empty, returning 0.0")
         return np.nan
-    
+
     mean_metric = float(np.mean(metric_list))
     logger.debug(f"Mean {metric_name} computed: {mean_metric:.4f} over {len(metric_list)} samples")
     return mean_metric
-
 
 def save_all_metrics(
     csv_path: str,
@@ -86,14 +82,14 @@ def save_all_metrics(
     with open(csv_path, mode='w', newline='') as f:
         writer = csv.writer(f)
 
-        # Header
+        # Write header row
         header = []
         for d in dataset_ids:
             header.append(f"D{d}_{metric_name}_border")
             header.append(f"D{d}_{metric_name}_valid_region")
         writer.writerow(header)
 
-        # Rows (pad with empty strings if needed)
+        # Write padded data rows
         for i in range(max_len):
             row = []
             for d in dataset_ids:
@@ -123,6 +119,7 @@ def load_all_metrics(
         reader = csv.reader(f)
         header = next(reader)
 
+        # Extract dataset identifiers
         dataset_ids = set()
         for h in header:
             if not h.startswith("D"):
@@ -134,10 +131,13 @@ def load_all_metrics(
             except (ValueError, IndexError):
                 continue
         dataset_ids = sorted(dataset_ids)
+
+        # Initialize metric containers
         for d in dataset_ids:
             all_metric_border[d] = []
             all_metric_valid[d] = []
 
+        # Read metric values
         for row in reader:
             for i, val in enumerate(row):
                 if val != "":
