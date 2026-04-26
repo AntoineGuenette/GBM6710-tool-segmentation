@@ -79,7 +79,7 @@ def plot_bar_comparison(
     x = np.arange(len(labels))
     width = 0.25
 
-    fig, ax = plt.subplots(figsize=(12, 6))
+    fig, ax = plt.subplots(figsize=(16, 5))
 
     has_article = any(val != 0 for val in article_metric)
 
@@ -132,7 +132,7 @@ def plot_violin(
     """
     Plot violin and boxplot distributions of a metric per dataset and globally.
     """
-    fig, ax = plt.subplots(figsize=(12,6))
+    fig, ax = plt.subplots(figsize=(16,5))
 
     data = [metric_list[d] for d in sorted(dataset_ids)]
 
@@ -179,8 +179,12 @@ def plot_violin(
     ax.set_xticklabels(labels)
     ax.set_xlabel("Jeux de données (Datasets)")
     ax.set_ylabel(metric)
-    ax.set_ylim(0.0, 1.0)
     ax.set_title(f"Distribution des {metric} par jeu de données")
+
+    if metric == "Specificity":
+        ax.set_ylim(0.7, 1.0)
+    else :
+        ax.set_ylim(0.0, 1.0)
 
     plt.tight_layout()
     os.makedirs(os.path.dirname(save_path), exist_ok=True)
@@ -201,7 +205,7 @@ def plot_global_qualitative_grid(
     """
     import cv2
 
-    fig, axes = plt.subplots(3, 3, figsize=(12, 10))
+    fig, axes = plt.subplots(3, 3, figsize=(6, 5))
 
     titles = ["Minimum", "Médiane", "Maximum"]
 
@@ -250,9 +254,9 @@ def plot_global_qualitative_grid(
 
         metric_val = sample.get("metric", None)
         if metric_val is not None:
-            title_str = f"{titles[col]}\nD{dataset_id} - Frame {frame_number}\n{metric_name}: {metric_val:.4f}"
+            title_str = f"{titles[col]}\nD{dataset_id} - Image {frame_number}\n{metric_name}: {metric_val:.4f}"
         else:
-            title_str = f"{titles[col]}\nD{dataset_id} - Frame {frame_number}"
+            title_str = f"{titles[col]}\nD{dataset_id} - Image {frame_number}"
 
         axes[0, col].set_title(title_str)
 
