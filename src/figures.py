@@ -16,7 +16,7 @@ def plot_qualitative_results(
     save_path: str
 ) -> None:
     """
-    Plot qualitative segmentation results (image, GT, probability map, prediction) in a 2x2 grid and save to disk.
+    Plot qualitative segmentation results (image, GT, probability map, prediction) in a 2x2 grid.
     """
     fig, axes = plt.subplots(2, 2, figsize=(8, 8))
 
@@ -70,7 +70,8 @@ def plot_bar_comparison(
     save_path: str
 ) -> None:
     """
-    Plot bar comparison of mean metric values for border and valid methods (and optionally article reference).
+    Plot bar comparison of mean metric values for border and valid methods (and optionally article
+    reference).
     """
 
     n_with_global = len(mean_metric_border)
@@ -134,7 +135,8 @@ def plot_violin(
     save_path: str
 ) -> None:
     """
-    Plot side-by-side violin + boxplot comparison for border vs valid methods per dataset and globally.
+    Plot side-by-side violin + boxplot comparison for border vs valid methods per dataset and
+    globally.
     """
     fig, ax = plt.subplots(figsize=(16,5))
 
@@ -239,7 +241,8 @@ def plot_global_qualitative_grid(
     metric_name: str
 ) -> None:
     """
-    Create a 3x3 qualitative grid (min, median, max) showing image, GT and prediction for a given method and metric.
+    Create a 3x3 qualitative grid (min, median, max) showing image, GT and prediction for a given
+    method and metric.
     """
 
     fig, axes = plt.subplots(3, 3, figsize=(6, 5))

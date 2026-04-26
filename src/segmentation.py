@@ -6,7 +6,28 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-def segment_tools(img_path: str, dataset_dir: str=None, save_subdir: str=None, debug: bool=False, method: str="valid_region"):
+def segment_tools(
+        img_path: str,
+        dataset_dir: str=None,
+        save_subdir: str=None,
+        debug: bool=False,
+        method: str="valid_region"
+    ) -> tuple:
+    """
+    Segment surgical tools from an input image using a multi-feature fusion approach.
+
+    Args:
+        img_path (str): Path to the input image.
+        dataset_dir (str): Root directory where the dataset us located.
+        save_subdir (str): Subdirectory name for saving results.
+        debug (bool): If True, display and optionally save debug visualizations.
+        method (str): Region selection method ('valid_region' or 'border').
+
+    Returns:
+        final_mask (np.ndarray): Binary segmentation mask (uint8, 0 or 255).
+        prob_map (np.ndarray): Combined probability map (float32).
+        img_crop (np.ndarray): Cropped RGB image used for processing.
+    """
     # Load image
     img = cv2.imread(img_path)
     if img is None:

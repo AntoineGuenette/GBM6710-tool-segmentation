@@ -23,8 +23,11 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Segmentation pipeline on EndoVis2017 dataset"
     )
-
-    parser.add_argument("--data-dir", type=str, help="Path to the EndoVis2017 folder")
+    parser.add_argument(
+        "--data-dir",
+        type=str,
+        help="Path to the EndoVis2017 folder"
+    )
     parser.add_argument(
         "--log-level",
         type=str,
@@ -32,18 +35,18 @@ def parse_args() -> argparse.Namespace:
         choices=["DEBUG", "INFO"],
         help="Logging level"
     )
-
     parser.add_argument(
         "--skip-analysis",
         action="store_true",
-        help="Skip segmentation and Dice computation, load from CSV instead"
+        help="Skip segmentation and metric computation, load from CSV instead"
     )
 
     return parser.parse_args()
 
 def main() -> None:
     """
-    Main entry point for the segmentation pipeline: runs segmentation, computes metrics, and generates figures.
+    Main entry point for the segmentation pipeline: runs segmentation, computes metrics, and
+    generates figures.
     """
     # Extract arguments
     args = parse_args()
@@ -107,7 +110,7 @@ def main() -> None:
                 "valid_region": mean_metrics_valid
             })
     else:
-        # Store global Dice results
+        # Store global results
         all_results = []
 
         all_dice_per_dataset = {}

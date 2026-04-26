@@ -24,7 +24,7 @@ def compute_Dice(computed_mask: np.ndarray, GT_mask: np.ndarray) -> float:
 
 def compute_sensitivity(computed_mask: np.ndarray, GT_mask: np.ndarray) -> float:
     """
-    Compute the sensitivity (recall) between two binary masks.
+    Compute the sensitivity between two binary masks.
     """
     TP = np.logical_and(computed_mask == 1, GT_mask == 1).sum()
     FN = np.logical_and(computed_mask == 0, GT_mask == 1).sum()
