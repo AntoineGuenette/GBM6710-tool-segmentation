@@ -1,6 +1,9 @@
 import os
+import cv2
 import matplotlib.pyplot as plt
 import numpy as np
+
+from matplotlib.patches import Patch
 
 from segmentation import crop_image
 
@@ -124,66 +127,101 @@ def plot_bar_comparison(
     plt.close(fig)
 
 def plot_violin(
-    metric_list: dict[int, list[float]],
+    metric_border: dict[int, list[float]],
+    metric_valid: dict[int, list[float]],
     metric: str,
     dataset_ids: list[int],
     save_path: str
 ) -> None:
     """
-    Plot violin and boxplot distributions of a metric per dataset and globally.
+    Plot side-by-side violin + boxplot comparison for border vs valid methods per dataset and globally.
     """
     fig, ax = plt.subplots(figsize=(16,5))
 
-    data = [metric_list[d] for d in sorted(dataset_ids)]
+    sorted_ids = sorted(dataset_ids)
 
-    # Add global distribution
-    global_data = [met for d in dataset_ids for met in metric_list[d]]
-    data.append(global_data)
+    data_border = [metric_border[d] for d in sorted_ids]
+    data_valid = [metric_valid[d] for d in sorted_ids]
 
-    parts = ax.violinplot(data, showmeans=False, showmedians=False, showextrema=False)
+    # Add global distributions
+    global_border = [val for d in sorted_ids for val in metric_border[d]]
+    global_valid = [val for d in sorted_ids for val in metric_valid[d]]
 
-    # Set violin colors
-    for pc in parts['bodies']:
+    data_border.append(global_border)
+    data_valid.append(global_valid)
+
+    n = len(data_border)
+
+    positions_border = np.arange(1, n + 1) - 0.15
+    positions_valid = np.arange(1, n + 1) + 0.15
+
+    # Plot violins
+    parts_border = ax.violinplot(data_border, positions=positions_border, showmeans=False, showmedians=False, showextrema=False)
+    parts_valid = ax.violinplot(data_valid, positions=positions_valid, showmeans=False, showmedians=False, showextrema=False)
+
+    # Style violins
+    for pc in parts_border['bodies']:
+        pc.set_facecolor("#6A8CAF")
+        pc.set_edgecolor("none")
+        pc.set_alpha(0.8)
+
+    for pc in parts_valid['bodies']:
         pc.set_facecolor("#ACBED8")
         pc.set_edgecolor("none")
         pc.set_alpha(0.8)
 
-    # Remove default violin lines
-    for key in ['cbars', 'cmins', 'cmaxes']:
-        if key in parts:
-            parts[key].set_visible(False)
-
-    # Overlay boxplot
-    box = ax.boxplot(
-        data,
-        positions=range(1, len(data) + 1),
-        widths=0.15,
+    # Overlay boxplots
+    box_border = ax.boxplot(
+        data_border,
+        positions=positions_border,
+        widths=0.2,
         patch_artist=True,
         showfliers=False
     )
 
-    # Style boxplot
-    for patch in box['boxes']:
+    box_valid = ax.boxplot(
+        data_valid,
+        positions=positions_valid,
+        widths=0.2,
+        patch_artist=True,
+        showfliers=False
+    )
+
+    # Style boxplots
+    for patch in box_border['boxes']:
+        patch.set_facecolor("none")
+        patch.set_edgecolor("#2E2836")
+        patch.set_linewidth(1.5)
+
+    for patch in box_valid['boxes']:
         patch.set_facecolor("none")
         patch.set_edgecolor("#2E2836")
         patch.set_linewidth(1.5)
 
     for element in ['whiskers', 'caps', 'medians']:
-        for line in box[element]:
+        for line in box_border[element] + box_valid[element]:
             line.set_color("#2E2836")
             line.set_linewidth(1.5)
 
-    ax.set_xticks(range(1, len(dataset_ids) + 2))
-    labels = [f"D{i}" for i in dataset_ids]
+    labels = [f"D{i}" for i in sorted_ids]
     labels.append("Global")
+
+    ax.set_xticks(range(1, n + 1))
     ax.set_xticklabels(labels)
+
     ax.set_xlabel("Jeux de données (Datasets)")
     ax.set_ylabel(metric)
-    ax.set_title(f"Distribution des {metric} par jeu de données")
+    ax.set_title(f"Distribution des {metric}")
+
+    legend_elements = [
+        Patch(facecolor="#6A8CAF", label="Ré-implémentation"),
+        Patch(facecolor="#ACBED8", label="Méthode améliorée")
+    ]
+    ax.legend(handles=legend_elements)
 
     if metric == "Specificity":
         ax.set_ylim(0.7, 1.0)
-    else :
+    else:
         ax.set_ylim(0.0, 1.0)
 
     plt.tight_layout()
@@ -203,7 +241,6 @@ def plot_global_qualitative_grid(
     """
     Create a 3x3 qualitative grid (min, median, max) showing image, GT and prediction for a given method and metric.
     """
-    import cv2
 
     fig, axes = plt.subplots(3, 3, figsize=(6, 5))
 

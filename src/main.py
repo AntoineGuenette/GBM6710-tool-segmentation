@@ -3,11 +3,11 @@ import os
 import logging
 import cv2
 import numpy as np
-import shutil
+import csv
 
 from segmentation import segment_tools, crop_image
 from analysis import compute_Dice, compute_sensitivity, compute_specificity, compute_mean_metric, save_all_metrics, load_all_metrics
-from figures import plot_qualitative_results, plot_bar_comparison, plot_violin
+from figures import plot_qualitative_results, plot_bar_comparison, plot_violin, plot_global_qualitative_grid
 
 logging.basicConfig(
     level=logging.INFO,  # Set temporary default level
@@ -325,7 +325,6 @@ def main() -> None:
             # Save mean metrics to CSV
             file_exists = os.path.isfile(mean_metrics_csv_path)
             with open(mean_metrics_csv_path, 'a', newline='') as f:
-                import csv
                 writer = csv.writer(f)
 
                 if not file_exists:
@@ -376,7 +375,6 @@ def main() -> None:
 
     # Save global means to CSV
     with open(mean_metrics_csv_path, 'a', newline='') as f:
-        import csv
         writer = csv.writer(f)
         writer.writerow([
             "global_mean",
@@ -445,7 +443,6 @@ def main() -> None:
 
                 save_path = os.path.join(global_vis_dir, f"{method}_{metric_name.lower()}_global_grid.png")
 
-                from figures import plot_global_qualitative_grid
                 plot_global_qualitative_grid(
                     selected_groups,
                     method,
@@ -484,8 +481,13 @@ def main() -> None:
         metric_border_dict = {d: all_dice_per_dataset[d]["border"][metric] for d in dataset_ids}
         metric_valid_dict = {d: all_dice_per_dataset[d]["valid_region"][metric] for d in dataset_ids}
 
-        plot_violin(metric_border_dict, metric, dataset_ids, os.path.join(figs_dir, f"{metric.lower()}_violin_border.png"))
-        plot_violin(metric_valid_dict, metric, dataset_ids, os.path.join(figs_dir, f"{metric.lower()}_violin_valid.png"))
+        plot_violin(
+            metric_border_dict,
+            metric_valid_dict,
+            metric,
+            dataset_ids,
+            os.path.join(figs_dir, f"{metric.lower()}_violin_comparison.png")
+        )
 
     logger.info("Saved quantitative plots (bar + violin)")
 
